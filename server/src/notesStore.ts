@@ -36,7 +36,7 @@ export class NotesStore {
     const note: Note = {
       id: globalThis.crypto.randomUUID(),
       title: trimmed,
-      body: body.trim(),
+      body: typeof body === "string" ? body.trim() : "",
       createdAt: new Date().toISOString(),
     };
     this.notes.set(note.id, note);

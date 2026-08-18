@@ -34,5 +34,14 @@ export function createApp(store: NotesStore = new NotesStore()): Express {
     res.status(deleted ? 204 : 404).end();
   });
 
+  app.use((err: unknown, _req: Request, res: Response, next: (e?: unknown) => void) => {
+    console.error(err);
+    if (res.headersSent) {
+      next(err);
+      return;
+    }
+    res.status(500).json({ error: "internal server error" });
+  });
+
   return app;
 }

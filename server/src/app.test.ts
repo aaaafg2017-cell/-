@@ -39,6 +39,14 @@ describe("Notes API", () => {
     expect(res.body.error).toMatch(/title/);
   });
 
+  it("treats a non-string body as empty", async () => {
+    const res = await request(app)
+      .post("/api/notes")
+      .send({ title: "numeric body", body: 123 });
+    expect(res.status).toBe(201);
+    expect(res.body.body).toBe("");
+  });
+
   it("lists created notes newest first", async () => {
     await request(app).post("/api/notes").send({ title: "older" });
     await new Promise((r) => setTimeout(r, 5));
