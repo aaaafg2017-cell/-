@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
 import { createApp } from "./app.js";
-import { NotesStore } from "./notesStore.js";
+import { BODY_MAX_LENGTH, NotesStore, TITLE_MAX_LENGTH } from "./notesStore.js";
 
 let app: ReturnType<typeof createApp>;
 let store: NotesStore;
@@ -31,6 +31,7 @@ describe("Notes API", () => {
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ title: "First note", body: "hello world" });
     expect(res.body.id).toBeTruthy();
+    expect(res.body.updatedAt).toBeTruthy();
   });
 
   it("rejects a note without a title", async () => {
@@ -47,6 +48,31 @@ describe("Notes API", () => {
     expect(res.body.body).toBe("");
   });
 
+  it("rejects a title that is too long", async () => {
+    const res = await request(app)
+      .post("/api/notes")
+      .send({ title: "x".repeat(TITLE_MAX_LENGTH + 1) });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/at most/);
+  });
+
+  it("rejects a body that is too long", async () => {
+    const res = await request(app)
+      .post("/api/notes")
+      .send({ title: "ok", body: "y".repeat(BODY_MAX_LENGTH + 1) });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/at most/);
+  });
+
+  it("returns 400 JSON when the body is not valid JSON", async () => {
+    const res = await request(app)
+      .post("/api/notes")
+      .set("Content-Type", "application/json")
+      .send("{");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("invalid request body");
+  });
+
   it("lists created notes newest first", async () => {
     await request(app).post("/api/notes").send({ title: "older" });
     await new Promise((r) => setTimeout(r, 5));
@@ -57,6 +83,41 @@ describe("Notes API", () => {
       "newer",
       "older",
     ]);
+  });
+
+  it("fetches a single note", async () => {
+    const created = await request(app)
+      .post("/api/notes")
+      .send({ title: "one", body: "body" });
+    const res = await request(app).get(`/api/notes/${created.body.id}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ title: "one", body: "body" });
+  });
+
+  it("returns 404 when a note is missing", async () => {
+    const res = await request(app).get("/api/notes/does-not-exist");
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe("note not found");
+  });
+
+  it("updates a note", async () => {
+    const created = await request(app)
+      .post("/api/notes")
+      .send({ title: "old title", body: "old body" });
+    const res = await request(app)
+      .put(`/api/notes/${created.body.id}`)
+      .send({ title: "new title", body: "new body" });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ title: "new title", body: "new body" });
+    expect(res.body.updatedAt).not.toBe(created.body.updatedAt);
+  });
+
+  it("returns 404 when updating a missing note", async () => {
+    const res = await request(app)
+      .put("/api/notes/does-not-exist")
+      .send({ title: "gone" });
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe("note not found");
   });
 
   it("deletes a note", async () => {
@@ -70,8 +131,9 @@ describe("Notes API", () => {
     expect(res.body).toEqual([]);
   });
 
-  it("returns 404 when deleting a missing note", async () => {
+  it("returns 404 JSON when deleting a missing note", async () => {
     const del = await request(app).delete("/api/notes/does-not-exist");
     expect(del.status).toBe(404);
+    expect(del.body.error).toBe("note not found");
   });
 });

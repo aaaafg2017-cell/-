@@ -3,6 +3,7 @@ export interface Note {
   title: string;
   body: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 const BASE = "/api";
@@ -32,6 +33,19 @@ export async function createNote(input: {
   return handle<Note>(
     await fetch(`${BASE}/notes`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  );
+}
+
+export async function updateNote(
+  id: string,
+  input: { title: string; body: string },
+): Promise<Note> {
+  return handle<Note>(
+    await fetch(`${BASE}/notes/${id}`, {
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     }),

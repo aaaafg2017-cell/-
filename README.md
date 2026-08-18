@@ -41,8 +41,14 @@ Then open http://localhost:5173 and create a note.
 | --- | --- | --- |
 | `GET` | `/api/health` | Health check |
 | `GET` | `/api/notes` | List notes (newest first) |
+| `GET` | `/api/notes/:id` | Fetch a single note |
 | `POST` | `/api/notes` | Create a note `{ title, body? }` |
+| `PUT` | `/api/notes/:id` | Replace a note `{ title, body? }` |
 | `DELETE` | `/api/notes/:id` | Delete a note |
+
+Titles are limited to 200 characters and bodies to 8,000. Invalid JSON and
+missing titles return `400`. The UI follows the browser language (including
+Arabic/RTL).
 
 ## Project layout
 

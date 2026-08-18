@@ -13,22 +13,49 @@ beforeEach(() => {
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();
       const method = init?.method ?? "GET";
+      const parsed = init?.body
+        ? (JSON.parse(String(init.body)) as { title: string; body?: string })
+        : undefined;
 
       if (url.endsWith("/api/notes") && method === "GET") {
         return jsonResponse(notes);
       }
       if (url.endsWith("/api/notes") && method === "POST") {
-        const parsed = JSON.parse(String(init?.body)) as { title: string };
+        const now = new Date().toISOString();
         const note: Note = {
           id: String(notes.length + 1),
-          title: parsed.title,
-          body: "",
-          createdAt: new Date().toISOString(),
+          title: parsed?.title ?? "",
+          body: parsed?.body ?? "",
+          createdAt: now,
+          updatedAt: now,
         };
         notes.unshift(note);
         return jsonResponse(note, 201);
       }
-      return jsonResponse({}, 204);
+      const idMatch = url.match(/\/api\/notes\/([^/]+)$/);
+      const id = idMatch?.[1];
+      if (id && method === "PUT") {
+        const index = notes.findIndex((note) => note.id === id);
+        if (index === -1) {
+          return jsonResponse({ error: "note not found" }, 404);
+        }
+        notes[index] = {
+          ...notes[index],
+          title: parsed?.title ?? notes[index].title,
+          body: parsed?.body ?? notes[index].body,
+          updatedAt: new Date().toISOString(),
+        };
+        return jsonResponse(notes[index]);
+      }
+      if (id && method === "DELETE") {
+        const index = notes.findIndex((note) => note.id === id);
+        if (index === -1) {
+          return jsonResponse({ error: "note not found" }, 404);
+        }
+        notes.splice(index, 1);
+        return jsonResponse(null, 204);
+      }
+      return jsonResponse({ error: "not found" }, 404);
     }),
   );
 });
@@ -50,16 +77,70 @@ describe("App", () => {
     expect(await screen.findByText(/no notes yet/i)).toBeInTheDocument();
   });
 
-  it("creates a note through the form", async () => {
+  it("creates a note through the form including the body", async () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText(/no notes yet/i);
 
     await user.type(screen.getByLabelText(/note title/i), "Buy milk");
+    await user.type(screen.getByLabelText(/note body/i), "2 liters");
     await user.click(screen.getByRole("button", { name: /add note/i }));
 
     await waitFor(() => {
       expect(screen.getByText("Buy milk")).toBeInTheDocument();
+    });
+    expect(screen.getByText("2 liters")).toBeInTheDocument();
+  });
+
+  it("requires a title before creating a note", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/no notes yet/i);
+
+    await user.click(screen.getByRole("button", { name: /add note/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/title/i);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("edits an existing note", async () => {
+    const user = userEvent.setup();
+    notes.push({
+      id: "1",
+      title: "Old title",
+      body: "Old body",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    render(<App />);
+    expect(await screen.findByText("Old title")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /edit/i }));
+    const titleInput = screen.getByLabelText(/note title/i);
+    await user.clear(titleInput);
+    await user.type(titleInput, "New title");
+    await user.click(screen.getByRole("button", { name: /save note/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("New title")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Old title")).not.toBeInTheDocument();
+  });
+
+  it("deletes a note", async () => {
+    const user = userEvent.setup();
+    notes.push({
+      id: "1",
+      title: "Throw away",
+      body: "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    render(<App />);
+    expect(await screen.findByText("Throw away")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /delete throw away/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/no notes yet/i)).toBeInTheDocument();
     });
   });
 });
