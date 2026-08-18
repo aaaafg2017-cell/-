@@ -8,7 +8,12 @@ export function createApp(store: NotesStore = new NotesStore()): Express {
   app.use(express.json({ limit: "32kb" }));
 
   app.get("/api/health", (_req: Request, res: Response) => {
-    res.json({ status: "ok", uptime: process.uptime() });
+    const persist = store.persistStatus();
+    res.json({
+      status: persist === "ok" ? "ok" : persist,
+      persist,
+      uptime: process.uptime(),
+    });
   });
 
   app.get("/api/notes", (_req: Request, res: Response) => {

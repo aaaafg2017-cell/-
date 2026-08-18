@@ -41,13 +41,22 @@ export class NotesStore {
     this.loadFromDisk();
   }
 
+  persistStatus(): "ok" | "degraded" | "unavailable" {
+    if (!this.loadFailed) {
+      return "ok";
+    }
+    return this.notes.size === 0 ? "unavailable" : "degraded";
+  }
+
   list(): Note[] {
+    this.assertReadable();
     return [...this.notes.values()].sort((a, b) =>
       b.updatedAt.localeCompare(a.updatedAt),
     );
   }
 
   get(id: string): Note | undefined {
+    this.assertReadable();
     return this.notes.get(id);
   }
 
@@ -68,6 +77,7 @@ export class NotesStore {
   }
 
   update(id: string, input: UpdateNoteInput): Note | undefined {
+    this.assertReadable();
     const existing = this.notes.get(id);
     if (!existing) {
       return undefined;
@@ -91,6 +101,7 @@ export class NotesStore {
   }
 
   delete(id: string): boolean {
+    this.assertReadable();
     const existing = this.notes.get(id);
     if (!existing) {
       return false;
@@ -148,6 +159,14 @@ export class NotesStore {
     }
   }
 
+  private assertReadable(): void {
+    if (this.persistStatus() === "unavailable") {
+      throw new PersistError(
+        "notes data file could not be loaded",
+      );
+    }
+  }
+
   private commitOrRollback(rollback: () => void): void {
     try {
       this.saveToDisk();
@@ -171,7 +190,13 @@ export class NotesStore {
     try {
       writeFileSync(
         tmpPath,
-        JSON.stringify(this.list(), null, 2),
+        JSON.stringify(
+          [...this.notes.values()].sort((a, b) =>
+            b.updatedAt.localeCompare(a.updatedAt),
+          ),
+          null,
+          2,
+        ),
         "utf8",
       );
       renameSync(tmpPath, this.persistPath);

@@ -39,7 +39,7 @@ Then open http://localhost:5173 and create a note.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/api/health` | Health check |
+| `GET` | `/api/health` | Health check (`persist`: `ok`, `degraded`, or `unavailable`) |
 | `GET` | `/api/notes` | List notes (newest first) |
 | `GET` | `/api/notes/:id` | Fetch a single note |
 | `POST` | `/api/notes` | Create a note `{ title, body? }` |
@@ -50,9 +50,10 @@ Titles are limited to 200 characters and bodies to 8,000. Invalid JSON and
 missing titles return `400`. `PUT` is a partial update: omitted fields keep
 their current values. Unknown `/api` routes return JSON `404`. Notes are
 saved to `server/data/notes.json` (override with `NOTES_DATA_FILE`) so they survive
-API restarts. Writes are atomic (`tmp` + rename) and a corrupt file is never
-overwritten. The UI follows the browser language (including Arabic/RTL),
-supports search, and asks before deleting.
+API restarts. Writes are atomic (`tmp` + rename). A corrupt file is never
+overwritten, and listing notes then returns `503` instead of an empty list.
+The UI follows the browser language (including Arabic/RTL), supports search,
+and asks before deleting.
 
 ## Project layout
 

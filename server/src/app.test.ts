@@ -19,6 +19,7 @@ describe("Notes API", () => {
     const res = await request(app).get("/api/health");
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("ok");
+    expect(res.body.persist).toBe("ok");
   });
 
   it("starts with no notes", async () => {
@@ -202,6 +203,18 @@ describe("Notes API", () => {
       writeFileSync(file, "{not json", "utf8");
       vi.spyOn(console, "error").mockImplementation(() => {});
       const persisted = createApp(new NotesStore(file));
+      const list = await request(persisted).get("/api/notes");
+      expect(list.status).toBe(503);
+      expect(list.body.error).toMatch(/could not be loaded/);
+
+      const missing = await request(persisted).get("/api/notes/any-id");
+      expect(missing.status).toBe(503);
+
+      const health = await request(persisted).get("/api/health");
+      expect(health.status).toBe(200);
+      expect(health.body.persist).toBe("unavailable");
+      expect(health.body.status).toBe("unavailable");
+
       const res = await request(persisted)
         .post("/api/notes")
         .send({ title: "x" });

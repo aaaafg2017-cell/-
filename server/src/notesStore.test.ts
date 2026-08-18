@@ -72,9 +72,46 @@ describe("NotesStore persistence", () => {
       writeFileSync(file, corrupt, "utf8");
       vi.spyOn(console, "error").mockImplementation(() => {});
       const store = new NotesStore(file);
+      expect(store.persistStatus()).toBe("unavailable");
+      expect(() => store.list()).toThrow(/could not be loaded/);
       expect(() => store.create({ title: "nope" })).toThrow(/refusing to overwrite/);
       expect(readFileSync(file, "utf8")).toBe(corrupt);
-      expect(store.list()).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads valid notes but refuses writes when some records are invalid", () => {
+    const dir = mkdtempSync(join(tmpdir(), "notes-"));
+    const file = join(dir, "notes.json");
+    try {
+      writeFileSync(
+        file,
+        JSON.stringify([
+          {
+            id: "ok",
+            title: "good",
+            body: "",
+            createdAt: "2024-01-01T00:00:00.000Z",
+            updatedAt: "2024-01-01T00:00:00.000Z",
+          },
+          { not: "a note" },
+        ]),
+        "utf8",
+      );
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const store = new NotesStore(file);
+      expect(store.persistStatus()).toBe("degraded");
+      expect(store.list()).toEqual([
+        {
+          id: "ok",
+          title: "good",
+          body: "",
+          createdAt: "2024-01-01T00:00:00.000Z",
+          updatedAt: "2024-01-01T00:00:00.000Z",
+        },
+      ]);
+      expect(() => store.create({ title: "x" })).toThrow(/refusing to overwrite/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

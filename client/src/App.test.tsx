@@ -78,6 +78,57 @@ describe("App", () => {
     expect(await screen.findByText(/no notes yet/i)).toBeInTheDocument();
   });
 
+  it("keeps a created note visible if the list refresh fails", async () => {
+    const user = userEvent.setup();
+    let getCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        const method = init?.method ?? "GET";
+        const parsed = init?.body
+          ? (JSON.parse(String(init.body)) as { title: string; body?: string })
+          : undefined;
+
+        if (url.endsWith("/api/notes") && method === "GET") {
+          getCount += 1;
+          if (getCount > 1) {
+            return jsonResponse(
+              { error: "notes data file could not be loaded" },
+              503,
+            );
+          }
+          return jsonResponse(notes);
+        }
+        if (url.endsWith("/api/notes") && method === "POST") {
+          const now = new Date().toISOString();
+          const note: Note = {
+            id: "created-1",
+            title: parsed?.title ?? "",
+            body: parsed?.body ?? "",
+            createdAt: now,
+            updatedAt: now,
+          };
+          notes.unshift(note);
+          return jsonResponse(note, 201);
+        }
+        return jsonResponse({ error: "not found" }, 404);
+      }),
+    );
+
+    render(<App />);
+    await screen.findByText(/no notes yet/i);
+
+    await user.type(screen.getByLabelText(/note title/i), "Kept note");
+    await user.click(screen.getByRole("button", { name: /add note/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Kept note")).toBeInTheDocument();
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(/could not be loaded/i);
+    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+  });
+
   it("creates a note through the form including the body", async () => {
     const user = userEvent.setup();
     render(<App />);
