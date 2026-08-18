@@ -1,1 +1,55 @@
-# -
+# Notes App
+
+A small full-stack starter used to bootstrap this repository's development
+experience. It has two workspaces:
+
+- **`client/`** — React + Vite + TypeScript single-page app.
+- **`server/`** — Express + TypeScript REST API with an in-memory notes store.
+
+The client proxies `/api/*` requests to the server during development, so you
+run both together and interact with a single URL.
+
+## Prerequisites
+
+- Node.js `>= 20` (developed against Node 22)
+- npm `>= 10`
+
+## Getting started
+
+```bash
+npm install        # install all workspace dependencies
+npm run dev        # start the API (:3001) and the client (:5173) together
+```
+
+Then open http://localhost:5173 and create a note.
+
+## Common commands
+
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Run client + server together with live reload |
+| `npm run dev:server` | Run only the Express API on port `3001` |
+| `npm run dev:client` | Run only the Vite dev server on port `5173` |
+| `npm test` | Run all workspace test suites (Vitest) |
+| `npm run typecheck` | Type-check every workspace |
+| `npm run lint` | Lint the whole repo with ESLint |
+| `npm run build` | Build the server and the client for production |
+
+## API
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/health` | Health check |
+| `GET` | `/api/notes` | List notes (newest first) |
+| `POST` | `/api/notes` | Create a note `{ title, body? }` |
+| `DELETE` | `/api/notes/:id` | Delete a note |
+
+## Project layout
+
+```
+.
+├── client/          # React + Vite frontend
+├── server/          # Express + TypeScript API
+├── eslint.config.js # Shared ESLint flat config
+└── package.json     # npm workspaces + top-level scripts
+```
