@@ -11,6 +11,10 @@
   "engines": {
     "node": ">=20"
   },
+  "overrides": {
+    "vite": "6.4.3",
+    "esbuild": ">=0.25.12"
+  },
   "scripts": {
     "dev": "concurrently -n server,client -c blue,magenta \"npm:dev:server\" \"npm:dev:client\"",
     "dev:server": "npm run dev --workspace server",

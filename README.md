@@ -4,7 +4,7 @@ A small full-stack starter used to bootstrap this repository's development
 experience. It has two workspaces:
 
 - **`client/`** — React + Vite + TypeScript single-page app.
-- **`server/`** — Express + TypeScript REST API with an in-memory notes store.
+- **`server/`** — Express + TypeScript REST API with file-backed notes.
 
 The client proxies `/api/*` requests to the server during development, so you
 run both together and interact with a single URL.
@@ -41,8 +41,18 @@ Then open http://localhost:5173 and create a note.
 | --- | --- | --- |
 | `GET` | `/api/health` | Health check |
 | `GET` | `/api/notes` | List notes (newest first) |
+| `GET` | `/api/notes/:id` | Fetch a single note |
 | `POST` | `/api/notes` | Create a note `{ title, body? }` |
+| `PUT` | `/api/notes/:id` | Partially update a note `{ title?, body? }` |
 | `DELETE` | `/api/notes/:id` | Delete a note |
+
+Titles are limited to 200 characters and bodies to 8,000. Invalid JSON and
+missing titles return `400`. `PUT` is a partial update: omitted fields keep
+their current values. Unknown `/api` routes return JSON `404`. Notes are
+saved to `server/data/notes.json` (override with `NOTES_DATA_FILE`) so they survive
+API restarts. Writes are atomic (`tmp` + rename) and a corrupt file is never
+overwritten. The UI follows the browser language (including Arabic/RTL),
+supports search, and asks before deleting.
 
 ## Project layout
 
