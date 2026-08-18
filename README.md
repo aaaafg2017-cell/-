@@ -49,7 +49,7 @@ Then open http://localhost:5173 and create a note.
 Titles are limited to 200 characters and bodies to 8,000. Invalid JSON and
 missing titles return `400`. `PUT` is a partial update: omitted fields keep
 their current values. Unknown `/api` routes return JSON `404`. Notes are
-saved to `data/notes.json` (override with `NOTES_DATA_FILE`) so they survive
+saved to `server/data/notes.json` (override with `NOTES_DATA_FILE`) so they survive
 API restarts. The UI follows the browser language (including Arabic/RTL),
 supports search, and asks before deleting.
 
