@@ -79,25 +79,47 @@ body {
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
 }
 
-.note-form__button {
-  align-self: flex-end;
-  background: var(--accent);
-  color: white;
-  border: none;
+.note-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.note-form__button,
+.note-form__cancel {
   border-radius: 10px;
   padding: 0.65rem 1.4rem;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.05s ease;
+  transition: background 0.15s ease, transform 0.05s ease, opacity 0.15s ease;
 }
 
-.note-form__button:hover {
+.note-form__button {
+  background: var(--accent);
+  color: white;
+  border: none;
+}
+
+.note-form__cancel {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.note-form__button:hover:not(:disabled) {
   background: var(--accent-hover);
 }
 
-.note-form__button:active {
+.note-form__button:active:not(:disabled),
+.note-form__cancel:active:not(:disabled) {
   transform: translateY(1px);
+}
+
+.note-form__button:disabled,
+.note-form__cancel:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .app__error {
@@ -110,6 +132,23 @@ body {
   color: var(--text-muted);
   text-align: center;
   margin-top: 2rem;
+}
+
+.app__search {
+  display: block;
+  margin: 1.25rem 0 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .note-list {
@@ -133,18 +172,43 @@ body {
   transition: border-color 0.15s ease, transform 0.1s ease;
 }
 
-.note-card:hover {
+.note-card:hover,
+.note-card--editing {
   border-color: var(--accent);
   transform: translateY(-1px);
 }
 
 .note-card__content {
   min-width: 0;
+  flex: 1;
 }
 
 .note-card__title {
   margin: 0;
   font-size: 1.15rem;
+  overflow-wrap: anywhere;
+}
+
+.note-card__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.4rem;
+}
+
+.note-card__edit {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 8px;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.note-card__edit:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-hover);
 }
 
 .note-card__body {
@@ -173,7 +237,18 @@ body {
   transition: all 0.15s ease;
 }
 
-.note-card__delete:hover {
+.note-card__delete:hover:not(:disabled) {
   border-color: var(--danger);
   color: var(--danger);
+}
+
+.note-card__edit:disabled,
+.note-card__delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+html[dir="rtl"] .note-form__actions,
+html[dir="rtl"] .note-card {
+  flex-direction: row;
 }
