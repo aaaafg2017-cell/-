@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { NotesStore } from "./notesStore.js";
 
 describe("NotesStore persistence", () => {
@@ -70,6 +70,7 @@ describe("NotesStore persistence", () => {
     const corrupt = "{not json";
     try {
       writeFileSync(file, corrupt, "utf8");
+      vi.spyOn(console, "error").mockImplementation(() => {});
       const store = new NotesStore(file);
       expect(() => store.create({ title: "nope" })).toThrow(/refusing to overwrite/);
       expect(readFileSync(file, "utf8")).toBe(corrupt);
