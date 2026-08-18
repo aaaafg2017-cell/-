@@ -43,12 +43,15 @@ Then open http://localhost:5173 and create a note.
 | `GET` | `/api/notes` | List notes (newest first) |
 | `GET` | `/api/notes/:id` | Fetch a single note |
 | `POST` | `/api/notes` | Create a note `{ title, body? }` |
-| `PUT` | `/api/notes/:id` | Replace a note `{ title, body? }` |
+| `PUT` | `/api/notes/:id` | Partially update a note `{ title?, body? }` |
 | `DELETE` | `/api/notes/:id` | Delete a note |
 
 Titles are limited to 200 characters and bodies to 8,000. Invalid JSON and
-missing titles return `400`. The UI follows the browser language (including
-Arabic/RTL).
+missing titles return `400`. `PUT` is a partial update: omitted fields keep
+their current values. Unknown `/api` routes return JSON `404`. Notes are
+saved to `data/notes.json` (override with `NOTES_DATA_FILE`) so they survive
+API restarts. The UI follows the browser language (including Arabic/RTL),
+supports search, and asks before deleting.
 
 ## Project layout
 

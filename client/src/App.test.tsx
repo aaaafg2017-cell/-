@@ -62,6 +62,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 function jsonResponse(data: unknown, status = 200): Response {
@@ -126,8 +127,9 @@ describe("App", () => {
     expect(screen.queryByText("Old title")).not.toBeInTheDocument();
   });
 
-  it("deletes a note", async () => {
+  it("deletes a note after confirmation", async () => {
     const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
     notes.push({
       id: "1",
       title: "Throw away",
@@ -142,5 +144,38 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/no notes yet/i)).toBeInTheDocument();
     });
+  });
+
+  it("does not delete when confirmation is cancelled", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    notes.push({
+      id: "1",
+      title: "Keep me",
+      body: "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    render(<App />);
+    expect(await screen.findByText("Keep me")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /delete keep me/i }));
+    expect(screen.getByText("Keep me")).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("filters notes by search query", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push(
+      { id: "1", title: "Buy milk", body: "2 liters", createdAt: now, updatedAt: now },
+      { id: "2", title: "Walk dog", body: "evening", createdAt: now, updatedAt: now },
+    );
+    render(<App />);
+    expect(await screen.findByText("Buy milk")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/search notes/i), "dog");
+    expect(screen.getByText("Walk dog")).toBeInTheDocument();
+    expect(screen.queryByText("Buy milk")).not.toBeInTheDocument();
   });
 });

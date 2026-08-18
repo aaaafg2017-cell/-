@@ -85,6 +85,22 @@ describe("Notes API", () => {
     ]);
   });
 
+  it("sorts an edited note to the top", async () => {
+    const older = await request(app).post("/api/notes").send({ title: "older" });
+    await new Promise((r) => setTimeout(r, 5));
+    await request(app).post("/api/notes").send({ title: "newer" });
+    await new Promise((r) => setTimeout(r, 5));
+    await request(app)
+      .put(`/api/notes/${older.body.id}`)
+      .send({ title: "older edited" });
+
+    const res = await request(app).get("/api/notes");
+    expect(res.body.map((n: { title: string }) => n.title)).toEqual([
+      "older edited",
+      "newer",
+    ]);
+  });
+
   it("fetches a single note", async () => {
     const created = await request(app)
       .post("/api/notes")
@@ -112,6 +128,39 @@ describe("Notes API", () => {
     expect(res.body.updatedAt).not.toBe(created.body.updatedAt);
   });
 
+  it("keeps the existing body when PUT omits it", async () => {
+    const created = await request(app)
+      .post("/api/notes")
+      .send({ title: "keep body", body: "original" });
+    const res = await request(app)
+      .put(`/api/notes/${created.body.id}`)
+      .send({ title: "renamed" });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ title: "renamed", body: "original" });
+  });
+
+  it("clears the body when PUT sends an empty string", async () => {
+    const created = await request(app)
+      .post("/api/notes")
+      .send({ title: "has body", body: "gone soon" });
+    const res = await request(app)
+      .put(`/api/notes/${created.body.id}`)
+      .send({ body: "   " });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ title: "has body", body: "" });
+  });
+
+  it("rejects an empty PUT patch", async () => {
+    const created = await request(app)
+      .post("/api/notes")
+      .send({ title: "untouched" });
+    const res = await request(app)
+      .put(`/api/notes/${created.body.id}`)
+      .send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/title or body/);
+  });
+
   it("returns 404 when updating a missing note", async () => {
     const res = await request(app)
       .put("/api/notes/does-not-exist")
@@ -135,5 +184,11 @@ describe("Notes API", () => {
     const del = await request(app).delete("/api/notes/does-not-exist");
     expect(del.status).toBe(404);
     expect(del.body.error).toBe("note not found");
+  });
+
+  it("returns JSON 404 for unknown API routes", async () => {
+    const res = await request(app).get("/api/does-not-exist");
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe("not found");
   });
 });

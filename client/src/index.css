@@ -134,6 +134,23 @@ body {
   margin-top: 2rem;
 }
 
+.app__search {
+  display: block;
+  margin: 1.25rem 0 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .note-list {
   list-style: none;
   padding: 0;
@@ -155,7 +172,8 @@ body {
   transition: border-color 0.15s ease, transform 0.1s ease;
 }
 
-.note-card:hover {
+.note-card:hover,
+.note-card--editing {
   border-color: var(--accent);
   transform: translateY(-1px);
 }

@@ -31,8 +31,15 @@ export function createApp(store: NotesStore = new NotesStore()): Express {
   });
 
   app.put("/api/notes/:id", (req: Request, res: Response) => {
-    const { title, body } = req.body ?? {};
-    const note = store.update(req.params.id, { title, body });
+    const body = req.body ?? {};
+    const patch: { title?: unknown; body?: unknown } = {};
+    if (body && typeof body === "object" && "title" in body) {
+      patch.title = body.title;
+    }
+    if (body && typeof body === "object" && "body" in body) {
+      patch.body = body.body;
+    }
+    const note = store.update(req.params.id, patch);
     if (!note) {
       res.status(404).json({ error: "note not found" });
       return;
@@ -49,6 +56,10 @@ export function createApp(store: NotesStore = new NotesStore()): Express {
     res.status(204).end();
   });
 
+  app.use("/api", (_req: Request, res: Response) => {
+    res.status(404).json({ error: "not found" });
+  });
+
   app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
     if (res.headersSent) {
       next(err);
@@ -59,7 +70,9 @@ export function createApp(store: NotesStore = new NotesStore()): Express {
       return;
     }
     const status = httpStatus(err);
-    console.error(err);
+    if (status >= 500) {
+      console.error(err);
+    }
     res.status(status).json({
       error: status === 400 ? "invalid request body" : "internal server error",
     });
