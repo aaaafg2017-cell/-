@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import request from "supertest";
 import { createApp } from "./app.js";
 import { BODY_MAX_LENGTH, NotesStore, TITLE_MAX_LENGTH } from "./notesStore.js";
@@ -200,6 +200,7 @@ describe("Notes API", () => {
     const file = join(dir, "notes.json");
     try {
       writeFileSync(file, "{not json", "utf8");
+      vi.spyOn(console, "error").mockImplementation(() => {});
       const persisted = createApp(new NotesStore(file));
       const res = await request(persisted)
         .post("/api/notes")
