@@ -1,6 +1,7 @@
 import { extname, resolve, sep } from "node:path";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
+import { parseExportFormat, renderNotesExport } from "./exportNotes.js";
 import { NotesStore, PersistError, ValidationError } from "./notesStore.js";
 
 export interface AppOptions {
@@ -33,6 +34,19 @@ export function createApp(
 
   app.get("/api/notes", (_req: Request, res: Response) => {
     res.json(store.list());
+  });
+
+  app.get("/api/notes/export", (req: Request, res: Response) => {
+    const format = parseExportFormat(req.query.format);
+    if (!format) {
+      res.status(400).json({ error: "format must be json or md" });
+      return;
+    }
+    const exportedAt = new Date().toISOString();
+    const file = renderNotesExport(store.list(), format, exportedAt);
+    res.setHeader("Content-Disposition", `attachment; filename="${file.filename}"`);
+    res.setHeader("Content-Type", file.contentType);
+    res.send(file.body);
   });
 
   app.get("/api/notes/:id", (req: Request, res: Response) => {

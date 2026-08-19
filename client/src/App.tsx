@@ -8,6 +8,11 @@ import {
   updateNote,
   type Note,
 } from "./api.ts";
+import {
+  downloadText,
+  renderNotesExport,
+  type ExportFormat,
+} from "./exportNotes.ts";
 import { copy, detectLocale, normalizeForSearch, type Locale } from "./i18n.ts";
 
 export const TITLE_MAX_LENGTH = 200;
@@ -310,6 +315,18 @@ export function App() {
     }
   }
 
+  function handleExport(format: ExportFormat) {
+    if (inFlightRef.current || loading || saving || deletingId) {
+      return;
+    }
+    if (visibleNotes.length === 0) {
+      setError(t.exportEmpty);
+      return;
+    }
+    const file = renderNotesExport(visibleNotes, format);
+    downloadText(file.filename, file.body, file.mime);
+  }
+
   async function handleDelete(note: Note) {
     if (inFlightRef.current || deletingId || saving) {
       return;
@@ -440,18 +457,38 @@ export function App() {
         <p className="app__empty">{t.empty}</p>
       ) : showList ? (
         <>
-          <label className="app__search">
-            <span className="visually-hidden">{t.searchLabel}</span>
-            <input
-              className="note-form__input"
-              type="search"
-              placeholder={t.searchPlaceholder}
-              aria-label={t.searchLabel}
-              dir="auto"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </label>
+          <div className="app__toolbar">
+            <label className="app__search">
+              <span className="visually-hidden">{t.searchLabel}</span>
+              <input
+                className="note-form__input"
+                type="search"
+                placeholder={t.searchPlaceholder}
+                aria-label={t.searchLabel}
+                dir="auto"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </label>
+            <div className="app__export" role="group" aria-label={t.exportLabel}>
+              <button
+                className="app__export-button"
+                type="button"
+                disabled={formLocked || visibleNotes.length === 0}
+                onClick={() => handleExport("json")}
+              >
+                {t.exportJson}
+              </button>
+              <button
+                className="app__export-button"
+                type="button"
+                disabled={formLocked || visibleNotes.length === 0}
+                onClick={() => handleExport("md")}
+              >
+                {t.exportMarkdown}
+              </button>
+            </div>
+          </div>
           {visibleNotes.length === 0 ? (
             <p className="app__empty">{t.noResults}</p>
           ) : (
