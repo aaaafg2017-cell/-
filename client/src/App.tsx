@@ -7,7 +7,7 @@ import {
   updateNote,
   type Note,
 } from "./api.ts";
-import { copy, detectLocale, normalizeForSearch } from "./i18n.ts";
+import { copy, detectLocale, normalizeForSearch, type Locale } from "./i18n.ts";
 
 export const TITLE_MAX_LENGTH = 200;
 export const BODY_MAX_LENGTH = 8000;
@@ -25,6 +25,24 @@ function isNetworkError(err: unknown): boolean {
     return true;
   }
   return err instanceof ApiError && (err.status === 502 || err.status === 504);
+}
+
+function errorMessage(err: unknown, t: (typeof copy)[Locale]): string {
+  if (isNetworkError(err)) {
+    return t.networkError;
+  }
+  if (err instanceof ApiError) {
+    if (err.status === 503) {
+      return t.persistError;
+    }
+    if (err.status === 404) {
+      return t.notFound;
+    }
+    if (err.status === 413) {
+      return t.tooLarge;
+    }
+  }
+  return err instanceof Error ? err.message : t.networkError;
 }
 
 function formatTimestamp(iso: string, locale: ReturnType<typeof detectLocale>): string {
@@ -52,6 +70,8 @@ export function App() {
   const editingIdRef = useRef<string | null>(null);
   const isDirtyRef = useRef(false);
   const inFlightRef = useRef(false);
+  const loadFailedRef = useRef(false);
+  loadFailedRef.current = loadFailed;
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -84,7 +104,7 @@ export function App() {
           }
           continue;
         }
-        setError(isNetworkError(err) ? t.networkError : (err as Error).message);
+        setError(errorMessage(err, t));
         setLoadFailed(true);
         break;
       }
@@ -98,10 +118,15 @@ export function App() {
     if (inFlightRef.current) {
       return;
     }
-    if (notes.length === 0) {
-      setLoading(true);
+    inFlightRef.current = true;
+    try {
+      if (notes.length === 0) {
+        setLoading(true);
+      }
+      await refresh(INITIAL_LOAD_RETRIES);
+    } finally {
+      inFlightRef.current = false;
     }
-    await refresh(INITIAL_LOAD_RETRIES);
   }
 
   useEffect(() => {
@@ -159,7 +184,9 @@ export function App() {
     setEditingId(note.id);
     setTitle(note.title);
     setBody(note.body);
-    setError(null);
+    if (!loadFailedRef.current) {
+      setError(null);
+    }
   }
 
   function cancelEdit() {
@@ -168,11 +195,16 @@ export function App() {
     setEditingId(null);
     setTitle("");
     setBody("");
-    setError(null);
+    if (!loadFailedRef.current) {
+      setError(null);
+    }
   }
 
   function requestCancelEdit() {
-    if (inFlightRef.current || !editingIdRef.current) {
+    if (inFlightRef.current) {
+      return;
+    }
+    if (!editingIdRef.current && !isDirtyRef.current) {
       return;
     }
     if (!confirmDiscard()) {
@@ -183,7 +215,10 @@ export function App() {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape" || !editingIdRef.current) {
+      if (event.key !== "Escape") {
+        return;
+      }
+      if (!editingIdRef.current && !isDirtyRef.current) {
         return;
       }
       event.preventDefault();
@@ -220,12 +255,13 @@ export function App() {
     setError(null);
     inFlightRef.current = true;
     setSaving(true);
+    const payload = { title: title.trim(), body: body.trim() };
     try {
       if (editingId) {
-        const updated = await updateNote(editingId, { title, body });
+        const updated = await updateNote(editingId, payload);
         setNotes((current) => upsertNote(current, updated));
       } else {
-        const created = await createNote({ title, body });
+        const created = await createNote(payload);
         setNotes((current) => upsertNote(current, created));
       }
       editingIdRef.current = null;
@@ -236,7 +272,14 @@ export function App() {
       setBody("");
       await refresh(INITIAL_LOAD_RETRIES);
     } catch (err) {
-      setError(isNetworkError(err) ? t.networkError : (err as Error).message);
+      if (err instanceof ApiError && err.status === 404 && editingId) {
+        editingIdRef.current = null;
+        isDirtyRef.current = true;
+        setEditingId(null);
+        setError(t.notFoundRecreate);
+      } else {
+        setError(errorMessage(err, t));
+      }
     } finally {
       inFlightRef.current = false;
       setSaving(false);
@@ -264,7 +307,7 @@ export function App() {
       }
       await refresh(INITIAL_LOAD_RETRIES);
     } catch (err) {
-      setError(isNetworkError(err) ? t.networkError : (err as Error).message);
+      setError(errorMessage(err, t));
     } finally {
       inFlightRef.current = false;
       setDeletingId(null);
@@ -319,7 +362,7 @@ export function App() {
           onChange={(e) => setBody(e.target.value)}
         />
         <div className="note-form__actions">
-          {editingId && (
+          {(editingId || isDirty) && (
             <button
               className="note-form__cancel"
               type="button"
