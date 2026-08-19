@@ -465,6 +465,33 @@ describe("App", () => {
     expect(screen.getByLabelText(/note body/i)).toHaveValue("new body");
   });
 
+  it("does not prompt again on Escape after unsaved edits were discarded", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "Draft",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByText("Draft")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /edit/i }));
+    await user.type(screen.getByLabelText(/note title/i), " changed");
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /add note/i })).toBeInTheDocument();
+
+    confirm.mockClear();
+    await user.keyboard("{Escape}");
+    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /add note/i })).toBeInTheDocument();
+  });
+
   it("retries when the Vite proxy returns 502 on first load", async () => {
     let attempts = 0;
     vi.stubGlobal(

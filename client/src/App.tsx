@@ -49,6 +49,8 @@ export function App() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const refreshId = useRef(0);
+  const editingIdRef = useRef<string | null>(null);
+  const isDirtyRef = useRef(false);
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -128,9 +130,11 @@ export function App() {
     }
     return title.trim() !== "" || body.trim() !== "";
   }, [body, editingId, notes, title]);
+  editingIdRef.current = editingId;
+  isDirtyRef.current = isDirty;
 
   function confirmDiscard(): boolean {
-    if (!isDirty) {
+    if (!isDirtyRef.current) {
       return true;
     }
     return window.confirm(t.discardChanges);
@@ -150,6 +154,8 @@ export function App() {
   }
 
   function cancelEdit() {
+    editingIdRef.current = null;
+    isDirtyRef.current = false;
     setEditingId(null);
     setTitle("");
     setBody("");
@@ -157,6 +163,9 @@ export function App() {
   }
 
   function requestCancelEdit() {
+    if (!editingIdRef.current) {
+      return;
+    }
     if (!confirmDiscard()) {
       return;
     }
@@ -164,18 +173,16 @@ export function App() {
   }
 
   useEffect(() => {
-    if (!editingId) {
-      return;
-    }
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        requestCancelEdit();
+      if (event.key !== "Escape" || !editingIdRef.current) {
+        return;
       }
+      event.preventDefault();
+      requestCancelEdit();
     }
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [editingId, isDirty, t.discardChanges]);
+  }, [t.discardChanges]);
 
   useEffect(() => {
     if (!isDirty) {
