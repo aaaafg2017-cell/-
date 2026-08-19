@@ -3,11 +3,21 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App } from "./App.tsx";
 import type { Note } from "./api.ts";
+import { downloadTextFile } from "./exportNotes.ts";
+
+vi.mock("./exportNotes.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./exportNotes.ts")>();
+  return {
+    ...actual,
+    downloadTextFile: vi.fn(),
+  };
+});
 
 const notes: Note[] = [];
 
 beforeEach(() => {
   notes.length = 0;
+  vi.mocked(downloadTextFile).mockClear();
   Object.defineProperty(navigator, "language", {
     configurable: true,
     get: () => "en-US",
@@ -1101,5 +1111,77 @@ describe("App", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "يجب ألا يتجاوز العنوان 200 حرف.",
     );
+  });
+
+  it("exports visible notes as JSON and Markdown", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push(
+      { id: "1", title: "Keep me", body: "visible", createdAt: now, updatedAt: now },
+      { id: "2", title: "Skip me", body: "hidden", createdAt: now, updatedAt: now },
+    );
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: /system outputs/i })).toBeInTheDocument();
+    expect(screen.getByText("2 notes")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /export json/i }));
+    expect(downloadTextFile).toHaveBeenCalledWith(
+      expect.stringMatching(/^notes-\d{4}-\d{2}-\d{2}\.json$/),
+      expect.stringContaining("Keep me"),
+      expect.stringContaining("application/json"),
+    );
+
+    await user.type(screen.getByLabelText(/search notes/i), "Keep");
+    expect(await screen.findByText("1 matching note")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /export markdown/i }));
+    const markdownCall = vi.mocked(downloadTextFile).mock.calls.at(-1);
+    expect(markdownCall?.[0]).toMatch(/^notes-\d{4}-\d{2}-\d{2}\.md$/);
+    expect(markdownCall?.[1]).toContain("# Keep me");
+    expect(markdownCall?.[1]).not.toContain("Skip me");
+    expect(markdownCall?.[2]).toContain("text/markdown");
+  });
+
+  it("exports a single note as Markdown", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "Solo",
+      body: "only this",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByText("Solo")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /export solo/i }));
+    expect(downloadTextFile).toHaveBeenCalledWith(
+      "Solo.md",
+      expect.stringContaining("only this"),
+      expect.stringContaining("text/markdown"),
+    );
+  });
+
+  it("labels system outputs in Arabic", async () => {
+    Object.defineProperty(navigator, "language", {
+      configurable: true,
+      value: "ar-SA",
+    });
+    Object.defineProperty(navigator, "languages", {
+      configurable: true,
+      value: ["ar-SA"],
+    });
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "ملاحظة",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: "مخرجات النظام" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "إخراج JSON" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "إخراج Markdown" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "إخراج ملاحظة" })).toBeInTheDocument();
   });
 });

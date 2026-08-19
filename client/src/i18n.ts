@@ -76,6 +76,14 @@ export const copy = {
     bodyTooLong: "Note bodies can be at most 8,000 characters.",
     invalidRequest: "That note could not be saved.",
     discardChanges: "You have unsaved changes. Discard them?",
+    systemOutputs: "System outputs",
+    exportJson: "Export JSON",
+    exportMarkdown: "Export Markdown",
+    export: "Export",
+    exportNote: (noteTitle: string) => `Export ${noteTitle}`,
+    notesCount: (count: number) => (count === 1 ? "1 note" : `${count} notes`),
+    matchingCount: (count: number) =>
+      count === 1 ? "1 matching note" : `${count} matching notes`,
   },
   ar: {
     title: "الملاحظات",
@@ -110,5 +118,14 @@ export const copy = {
     bodyTooLong: "يجب ألا يتجاوز نص الملاحظة 8000 حرف.",
     invalidRequest: "تعذر حفظ هذه الملاحظة.",
     discardChanges: "لديك تغييرات غير محفوظة. هل تريد تجاهلها؟",
+    systemOutputs: "مخرجات النظام",
+    exportJson: "إخراج JSON",
+    exportMarkdown: "إخراج Markdown",
+    export: "إخراج",
+    exportNote: (noteTitle: string) => `إخراج ${noteTitle}`,
+    notesCount: (count: number) =>
+      count === 1 ? "ملاحظة واحدة" : `${count} ملاحظات`,
+    matchingCount: (count: number) =>
+      count === 1 ? "ملاحظة مطابقة واحدة" : `${count} ملاحظات مطابقة`,
   },
 } as const;

@@ -49,6 +49,7 @@ npm start          # http://localhost:3001 (API + UI)
 | --- | --- | --- |
 | `GET` | `/api/health` | Health check (`persist`: `ok`, `degraded`, or `unavailable`) |
 | `GET` | `/api/notes` | List notes (newest first) |
+| `GET` | `/api/notes/export` | Download all notes (`format=json` or `format=markdown`) |
 | `GET` | `/api/notes/:id` | Fetch a single note |
 | `POST` | `/api/notes` | Create a note `{ title, body? }` |
 | `PUT` | `/api/notes/:id` | Partially update a note `{ title?, body? }` |
@@ -66,7 +67,9 @@ UTC ISO-8601 so mixed formats still sort and show “edited” correctly. Invali
 fields, bad dates, or duplicate ids) are skipped: health reports `degraded`,
 valid notes can still be listed, and writes return `503` until the file is repaired.
 The UI follows the browser language (including Arabic/RTL), supports search
-(including Arabic alef/tashkeel variants, hamza on waw/yeh, and extra spaces), and asks before deleting.
+(including Arabic alef/tashkeel variants, hamza on waw/yeh, and extra spaces),
+asks before deleting, and can export visible notes as JSON or Markdown from
+**System outputs** / **مخرجات النظام**.
 
 ## Project layout
 
