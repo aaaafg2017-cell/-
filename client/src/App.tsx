@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
+  ApiError,
   createNote,
   deleteNote,
   fetchNotes,
@@ -20,7 +21,10 @@ function upsertNote(notes: Note[], note: Note): Note[] {
 }
 
 function isNetworkError(err: unknown): boolean {
-  return err instanceof TypeError;
+  if (err instanceof TypeError) {
+    return true;
+  }
+  return err instanceof ApiError && (err.status === 502 || err.status === 504);
 }
 
 function formatTimestamp(iso: string, locale: ReturnType<typeof detectLocale>): string {
@@ -45,6 +49,8 @@ export function App() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const refreshId = useRef(0);
+  const editingIdRef = useRef<string | null>(null);
+  const isDirtyRef = useRef(false);
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -91,7 +97,7 @@ export function App() {
     if (notes.length === 0) {
       setLoading(true);
     }
-    await refresh();
+    await refresh(INITIAL_LOAD_RETRIES);
   }
 
   useEffect(() => {
@@ -120,13 +126,15 @@ export function App() {
       if (!current) {
         return true;
       }
-      return title !== current.title || body !== current.body;
+      return title.trim() !== current.title || body.trim() !== current.body;
     }
-    return title.trim() !== "" || body !== "";
+    return title.trim() !== "" || body.trim() !== "";
   }, [body, editingId, notes, title]);
+  editingIdRef.current = editingId;
+  isDirtyRef.current = isDirty;
 
   function confirmDiscard(): boolean {
-    if (!isDirty) {
+    if (!isDirtyRef.current) {
       return true;
     }
     return window.confirm(t.discardChanges);
@@ -146,25 +154,35 @@ export function App() {
   }
 
   function cancelEdit() {
+    editingIdRef.current = null;
+    isDirtyRef.current = false;
     setEditingId(null);
     setTitle("");
     setBody("");
     setError(null);
   }
 
-  useEffect(() => {
-    if (!editingId) {
+  function requestCancelEdit() {
+    if (!editingIdRef.current) {
       return;
     }
+    if (!confirmDiscard()) {
+      return;
+    }
+    cancelEdit();
+  }
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        cancelEdit();
+      if (event.key !== "Escape" || !editingIdRef.current) {
+        return;
       }
+      event.preventDefault();
+      requestCancelEdit();
     }
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [editingId]);
+  }, [t.discardChanges]);
 
   useEffect(() => {
     if (!isDirty) {
@@ -283,7 +301,7 @@ export function App() {
             <button
               className="note-form__cancel"
               type="button"
-              onClick={cancelEdit}
+              onClick={requestCancelEdit}
               disabled={formLocked}
             >
               {t.cancel}

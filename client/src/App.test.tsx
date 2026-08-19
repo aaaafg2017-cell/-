@@ -419,6 +419,110 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
   });
 
+  it("asks before discarding unsaved edits when cancelling with Escape", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "Draft",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByText("Draft")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /edit/i }));
+    await user.type(screen.getByLabelText(/note title/i), " changed");
+    await user.keyboard("{Escape}");
+
+    expect(confirm).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /save note/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/note title/i)).toHaveValue("Draft changed");
+  });
+
+  it("asks before discarding unsaved edits when clicking Cancel", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "Draft",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByText("Draft")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /edit/i }));
+    await user.type(screen.getByLabelText(/note body/i), "new body");
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+
+    expect(confirm).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /save note/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/note body/i)).toHaveValue("new body");
+  });
+
+  it("does not prompt again on Escape after unsaved edits were discarded", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "Draft",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByText("Draft")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /edit/i }));
+    await user.type(screen.getByLabelText(/note title/i), " changed");
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /add note/i })).toBeInTheDocument();
+
+    confirm.mockClear();
+    await user.keyboard("{Escape}");
+    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /add note/i })).toBeInTheDocument();
+  });
+
+  it("retries when the Vite proxy returns 502 on first load", async () => {
+    let attempts = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        attempts += 1;
+        if (attempts === 1) {
+          return jsonResponse({ error: "api unreachable" }, 502);
+        }
+        return jsonResponse(notes);
+      }),
+    );
+
+    render(<App />);
+    expect(await screen.findByText(/no notes yet/i)).toBeInTheDocument();
+    expect(attempts).toBe(2);
+  });
+
+  it("shows a localized network error after proxy 502 retries are exhausted", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ error: "api unreachable" }, 502)),
+    );
+
+    render(<App />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /could not reach the notes api/i,
+    );
+    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+  });
+
   it("asks before discarding unsaved edits when switching notes", async () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);

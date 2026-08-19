@@ -8,6 +8,16 @@ export interface Note {
 
 const BASE = "/api";
 
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function request(url: string, init?: RequestInit): Promise<Response> {
   return fetch(url, { cache: "no-store", ...init });
 }
@@ -21,7 +31,7 @@ async function handle<T>(res: Response): Promise<T> {
     } catch {
       // ignore non-JSON error bodies
     }
-    throw new Error(message);
+    throw new ApiError(message, res.status);
   }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
