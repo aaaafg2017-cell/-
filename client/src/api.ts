@@ -33,7 +33,14 @@ async function handle<T>(res: Response): Promise<T> {
     }
     throw new ApiError(message, res.status);
   }
-  return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
+  if (res.status === 204) {
+    return undefined as T;
+  }
+  try {
+    return (await res.json()) as T;
+  } catch {
+    throw new ApiError("invalid notes response", 500);
+  }
 }
 
 const TITLE_MAX_LENGTH = 200;
@@ -46,15 +53,18 @@ export function parseNote(value: unknown): Note | undefined {
   const record = value as Record<string, unknown>;
   if (
     typeof record.id !== "string" ||
-    record.id.trim().length === 0 ||
     typeof record.title !== "string" ||
     typeof record.body !== "string" ||
     typeof record.createdAt !== "string"
   ) {
     return undefined;
   }
+  const id = record.id.trim();
   const title = record.title.trim();
   const body = record.body.trim();
+  if (id.length === 0) {
+    return undefined;
+  }
   if (
     title.length === 0 ||
     title.length > TITLE_MAX_LENGTH ||
@@ -73,7 +83,7 @@ export function parseNote(value: unknown): Note | undefined {
     return undefined;
   }
   return {
-    id: record.id,
+    id,
     title,
     body,
     createdAt,
@@ -93,7 +103,15 @@ function canonicalIso(value: unknown): string | undefined {
 }
 
 export function compareNotes(a: Note, b: Note): number {
-  return Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+  const byUpdated = Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+  if (byUpdated !== 0) {
+    return byUpdated;
+  }
+  const byCreated = Date.parse(b.createdAt) - Date.parse(a.createdAt);
+  if (byCreated !== 0) {
+    return byCreated;
+  }
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
 export function parseNotes(value: unknown): Note[] {

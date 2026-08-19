@@ -37,9 +37,13 @@ export function normalizeForSearch(text: string): string {
     .replace(/\u0640/g, "")
     .replace(/[أإآٱ]/g, "ا")
     .replace(/ؤ/g, "و")
-    .replace(/[ئى]/g, "ي")
+    .replace(/[ئىی]/g, "ي")
+    .replace(/[کڪ]/g, "ك")
     .replace(/ة/g, "ه")
-    .replace(/\s+/g, " ");
+    .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[\u06f0-\u06f9]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export const copy = {
@@ -79,6 +83,7 @@ export const copy = {
     titleTooLong: "Titles can be at most 200 characters.",
     bodyTooLong: "Note bodies can be at most 8,000 characters.",
     invalidRequest: "That note could not be saved.",
+    invalidResponse: "Notes data from the server was not valid.",
     discardChanges: "You have unsaved changes. Discard them?",
   },
   ar: {
@@ -117,6 +122,7 @@ export const copy = {
     titleTooLong: "يجب ألا يتجاوز العنوان 200 حرف.",
     bodyTooLong: "يجب ألا يتجاوز نص الملاحظة 8000 حرف.",
     invalidRequest: "تعذر حفظ هذه الملاحظة.",
+    invalidResponse: "بيانات الملاحظات من الخادم غير صالحة.",
     discardChanges: "لديك تغييرات غير محفوظة. هل تريد تجاهلها؟",
   },
 } as const;

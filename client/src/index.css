@@ -191,6 +191,29 @@ body {
   cursor: not-allowed;
 }
 
+.app__export-button:focus-visible {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .note-form__button,
+  .note-form__cancel,
+  .note-card,
+  .note-card__edit,
+  .note-card__delete,
+  .app__export-button {
+    transition: none;
+  }
+
+  .note-form__button:active:not(:disabled),
+  .note-form__cancel:active:not(:disabled),
+  .note-card:hover,
+  .note-card--editing {
+    transform: none;
+  }
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

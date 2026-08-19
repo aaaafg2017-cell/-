@@ -339,6 +339,7 @@ describe("Notes API", () => {
         .post("/api/notes")
         .send({ title: "x" });
       expect(res.status).toBe(503);
+      expect(res.body.error).toMatch(/could not be loaded/);
       expect(res.body.error).toMatch(/refusing to overwrite/);
     } finally {
       rmSync(dir, { recursive: true, force: true });

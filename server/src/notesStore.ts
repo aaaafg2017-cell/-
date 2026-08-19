@@ -67,6 +67,7 @@ export class NotesStore {
       createdAt: now,
       updatedAt: now,
     };
+    this.assertWritable();
     this.notes.set(note.id, note);
     this.commitOrRollback(() => {
       this.notes.delete(note.id);
@@ -90,6 +91,7 @@ export class NotesStore {
     if (nextTitle === existing.title && nextBody === existing.body) {
       return existing;
     }
+    this.assertWritable();
     const updated: Note = {
       ...existing,
       title: nextTitle,
@@ -109,6 +111,7 @@ export class NotesStore {
     if (!existing) {
       return false;
     }
+    this.assertWritable();
     this.notes.delete(id);
     this.commitOrRollback(() => {
       this.notes.set(id, existing);
@@ -117,6 +120,7 @@ export class NotesStore {
   }
 
   clear(): void {
+    this.assertWritable();
     const snapshot = [...this.notes.values()];
     this.notes.clear();
     this.commitOrRollback(() => {
@@ -172,6 +176,17 @@ export class NotesStore {
         "notes data file could not be loaded",
       );
     }
+  }
+
+  private assertWritable(): void {
+    if (!this.loadFailed) {
+      return;
+    }
+    throw new PersistError(
+      this.notes.size === 0
+        ? "notes data file could not be loaded; refusing to overwrite it"
+        : "notes data file has invalid records; refusing to overwrite it",
+    );
   }
 
   private commitOrRollback(rollback: () => void): void {
@@ -254,11 +269,14 @@ function asNote(value: unknown): Note | undefined {
   const record = value as Record<string, unknown>;
   if (
     typeof record.id !== "string" ||
-    record.id.trim().length === 0 ||
     typeof record.title !== "string" ||
     typeof record.body !== "string" ||
     typeof record.createdAt !== "string"
   ) {
+    return undefined;
+  }
+  const id = record.id.trim();
+  if (!id) {
     return undefined;
   }
   const createdAt = canonicalIso(record.createdAt);
@@ -273,7 +291,7 @@ function asNote(value: unknown): Note | undefined {
   }
   try {
     return {
-      id: record.id,
+      id,
       title: normalizeTitle(record.title),
       body: normalizeBody(record.body),
       createdAt,
@@ -296,7 +314,15 @@ function canonicalIso(value: unknown): string | undefined {
 }
 
 function compareNotes(a: Note, b: Note): number {
-  return Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+  const byUpdated = Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+  if (byUpdated !== 0) {
+    return byUpdated;
+  }
+  const byCreated = Date.parse(b.createdAt) - Date.parse(a.createdAt);
+  if (byCreated !== 0) {
+    return byCreated;
+  }
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {

@@ -47,7 +47,7 @@ describe("client notes export", () => {
     expect(md.body).toContain("Count: 1");
   });
 
-  it("triggers a file download", () => {
+  it("triggers a file download", async () => {
     const createObjectURL = vi.fn(() => "blob:notes");
     const revokeObjectURL = vi.fn();
     vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
@@ -63,6 +63,8 @@ describe("client notes export", () => {
 
     expect(createObjectURL).toHaveBeenCalled();
     expect(click).toHaveBeenCalled();
-    expect(revokeObjectURL).toHaveBeenCalledWith("blob:notes");
+    await vi.waitFor(() => {
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:notes");
+    });
   });
 });
