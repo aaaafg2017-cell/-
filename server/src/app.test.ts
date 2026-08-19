@@ -243,6 +243,12 @@ describe("Notes API", () => {
       expect(spa.status).toBe(200);
       expect(spa.text).toContain("Notes UI");
 
+      const missingAsset = await request(ui).get("/assets/missing.js");
+      expect(missingAsset.status).toBe(404);
+
+      const missingIcon = await request(ui).get("/favicon.ico");
+      expect(missingIcon.status).toBe(404);
+
       const health = await request(ui).get("/api/health");
       expect(health.status).toBe(200);
       expect(health.body.status).toBe("ok");

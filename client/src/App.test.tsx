@@ -12,6 +12,10 @@ beforeEach(() => {
     configurable: true,
     get: () => "en-US",
   });
+  Object.defineProperty(navigator, "languages", {
+    configurable: true,
+    get: () => ["en-US"],
+  });
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -286,6 +290,10 @@ describe("App", () => {
       configurable: true,
       value: "ar-SA",
     });
+    Object.defineProperty(navigator, "languages", {
+      configurable: true,
+      value: ["ar-SA", "en"],
+    });
     render(<App />);
     expect(await screen.findByRole("heading", { name: "الملاحظات" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "إضافة ملاحظة" })).toBeInTheDocument();
@@ -299,5 +307,89 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: /add note/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/title/i);
     expect(screen.getByLabelText(/note title/i)).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("clears the title-required error while the user types", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/no notes yet/i);
+
+    await user.click(screen.getByRole("button", { name: /add note/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/title/i);
+
+    await user.type(screen.getByLabelText(/note title/i), "A");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps the note being edited visible when search does not match it", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push(
+      { id: "1", title: "Buy milk", body: "2 liters", createdAt: now, updatedAt: now },
+      { id: "2", title: "Walk dog", body: "evening", createdAt: now, updatedAt: now },
+    );
+    render(<App />);
+    expect(await screen.findByText("Buy milk")).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole("button", { name: /edit/i })[0]);
+    await user.type(screen.getByLabelText(/search notes/i), "dog");
+
+    expect(screen.getByText("Walk dog")).toBeInTheDocument();
+    expect(screen.getByText("Buy milk")).toBeInTheDocument();
+    expect(screen.getByLabelText(/note title/i)).toHaveValue("Buy milk");
+  });
+
+  it("cancels edit when Escape is pressed", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "Draft",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByText("Draft")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /edit/i }));
+    expect(screen.getByRole("button", { name: /save note/i })).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: /add note/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/note title/i)).toHaveValue("");
+  });
+
+  it("retries when the API is unreachable on first load", async () => {
+    let attempts = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new TypeError("Failed to fetch");
+        }
+        return jsonResponse(notes);
+      }),
+    );
+
+    render(<App />);
+    expect(await screen.findByText(/no notes yet/i)).toBeInTheDocument();
+    expect(attempts).toBe(2);
+  });
+
+  it("shows a localized network error after retries are exhausted", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    );
+
+    render(<App />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /could not reach the notes api/i,
+    );
+    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
   });
 });

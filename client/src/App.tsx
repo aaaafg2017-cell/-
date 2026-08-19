@@ -10,11 +10,25 @@ import { copy, detectLocale } from "./i18n.ts";
 
 export const TITLE_MAX_LENGTH = 200;
 export const BODY_MAX_LENGTH = 8000;
+const INITIAL_LOAD_RETRIES = import.meta.env.MODE === "test" ? 3 : 8;
+const INITIAL_RETRY_DELAY_MS = import.meta.env.MODE === "test" ? 5 : 200;
 
 function upsertNote(notes: Note[], note: Note): Note[] {
   return [note, ...notes.filter((item) => item.id !== note.id)].sort((a, b) =>
     b.updatedAt.localeCompare(a.updatedAt),
   );
+}
+
+function isNetworkError(err: unknown): boolean {
+  return err instanceof TypeError;
+}
+
+function formatTimestamp(iso: string, locale: ReturnType<typeof detectLocale>): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return date.toLocaleString(locale === "ar" ? "ar" : undefined);
 }
 
 export function App() {
@@ -38,26 +52,38 @@ export function App() {
     document.title = t.title;
   }, [locale, t.title]);
 
-  async function refresh() {
+  async function refresh(retries = 0) {
     const id = ++refreshId.current;
-    try {
-      const next = await fetchNotes();
-      if (id !== refreshId.current) {
-        return;
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        const next = await fetchNotes();
+        if (id !== refreshId.current) {
+          return;
+        }
+        setNotes(next);
+        setError(null);
+        setLoadFailed(false);
+        break;
+      } catch (err) {
+        if (id !== refreshId.current) {
+          return;
+        }
+        if (isNetworkError(err) && attempt < retries) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, INITIAL_RETRY_DELAY_MS * (attempt + 1)),
+          );
+          if (id !== refreshId.current) {
+            return;
+          }
+          continue;
+        }
+        setError(isNetworkError(err) ? t.networkError : (err as Error).message);
+        setLoadFailed(true);
+        break;
       }
-      setNotes(next);
-      setError(null);
-      setLoadFailed(false);
-    } catch (err) {
-      if (id !== refreshId.current) {
-        return;
-      }
-      setError((err as Error).message);
-      setLoadFailed(true);
-    } finally {
-      if (id === refreshId.current) {
-        setLoading(false);
-      }
+    }
+    if (id === refreshId.current) {
+      setLoading(false);
     }
   }
 
@@ -69,21 +95,24 @@ export function App() {
   }
 
   useEffect(() => {
-    void refresh();
+    void refresh(INITIAL_LOAD_RETRIES);
   }, []);
 
   const visibleNotes = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) {
-      return notes;
-    }
     return notes.filter((note) => {
+      if (editingId === note.id) {
+        return true;
+      }
+      if (!needle) {
+        return true;
+      }
       return (
         note.title.toLowerCase().includes(needle) ||
         note.body.toLowerCase().includes(needle)
       );
     });
-  }, [notes, query]);
+  }, [notes, query, editingId]);
 
   function startEdit(note: Note) {
     setEditingId(note.id);
@@ -98,6 +127,19 @@ export function App() {
     setBody("");
     setError(null);
   }
+
+  useEffect(() => {
+    if (!editingId) {
+      return;
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        cancelEdit();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editingId]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -124,7 +166,7 @@ export function App() {
       setBody("");
       await refresh();
     } catch (err) {
-      setError((err as Error).message);
+      setError(isNetworkError(err) ? t.networkError : (err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -147,7 +189,7 @@ export function App() {
       }
       await refresh();
     } catch (err) {
-      setError((err as Error).message);
+      setError(isNetworkError(err) ? t.networkError : (err as Error).message);
     } finally {
       setDeletingId(null);
     }
@@ -178,7 +220,12 @@ export function App() {
           value={title}
           maxLength={TITLE_MAX_LENGTH}
           disabled={saving}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => {
+            setTitle(e.target.value);
+            if (error === t.titleRequired) {
+              setError(null);
+            }
+          }}
         />
         <textarea
           className="note-form__textarea"
@@ -265,9 +312,7 @@ export function App() {
                         <p className="note-card__body" dir="auto">{note.body}</p>
                       )}
                       <time className="note-card__time" dateTime={note.updatedAt}>
-                        {new Date(note.updatedAt).toLocaleString(
-                          locale === "ar" ? "ar" : undefined,
-                        )}
+                        {formatTimestamp(note.updatedAt, locale)}
                         {edited ? ` · ${t.edited}` : ""}
                       </time>
                     </div>

@@ -1,11 +1,28 @@
 export type Locale = "en" | "ar";
 
-export function detectLocale(): Locale {
-  if (typeof navigator === "undefined") {
-    return "en";
+function normalizeLanguageTag(tag: string): string {
+  return tag.trim().toLowerCase().replace(/_/g, "-");
+}
+
+export function isArabicLanguage(tag: string): boolean {
+  const language = normalizeLanguageTag(tag);
+  return language === "ar" || language.startsWith("ar-");
+}
+
+export function preferredLanguage(
+  nav: Pick<Navigator, "language" | "languages"> | undefined = globalThis.navigator,
+): string {
+  if (!nav) {
+    return "";
   }
-  const language = (navigator.language || "").toLowerCase();
-  return language === "ar" || language.startsWith("ar-") ? "ar" : "en";
+  if (nav.languages && nav.languages.length > 0) {
+    return nav.languages[0] ?? "";
+  }
+  return nav.language || "";
+}
+
+export function detectLocale(language = preferredLanguage()): Locale {
+  return isArabicLanguage(language) ? "ar" : "en";
 }
 
 export const copy = {
@@ -30,6 +47,7 @@ export const copy = {
     noResults: "No notes match your search.",
     edited: "edited",
     retry: "Try again",
+    networkError: "Could not reach the notes API. Is the server running?",
   },
   ar: {
     title: "الملاحظات",
@@ -52,5 +70,6 @@ export const copy = {
     noResults: "لا توجد ملاحظات مطابقة للبحث.",
     edited: "معدّلة",
     retry: "إعادة المحاولة",
+    networkError: "تعذر الوصول إلى واجهة الملاحظات. هل الخادم يعمل؟",
   },
 } as const;

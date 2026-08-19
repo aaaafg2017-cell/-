@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { createApp } from "./app.js";
 import { NotesStore } from "./notesStore.js";
 
-const PORT = Number(process.env.PORT ?? 3001);
+const PORT = readPort(process.env.PORT);
 const HOST = process.env.HOST ?? "0.0.0.0";
 const here = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DATA_FILE = resolve(here, "../data/notes.json");
@@ -16,7 +16,7 @@ const staticDir = existsSync(resolve(clientDist, "index.html"))
 
 const app = createApp(new NotesStore(DATA_FILE), { staticDir });
 
-app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, () => {
   const origin = `http://${HOST}:${PORT}`;
   if (staticDir) {
     console.log(`Notes app listening on ${origin}`);
@@ -24,3 +24,16 @@ app.listen(PORT, HOST, () => {
     console.log(`Notes API listening on ${origin}`);
   }
 });
+
+server.on("error", (err: NodeJS.ErrnoException) => {
+  console.error(`Notes server failed to listen on ${HOST}:${PORT}:`, err.message);
+  process.exit(1);
+});
+
+function readPort(raw: string | undefined): number {
+  const port = Number(raw ?? 3001);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`Invalid PORT: ${raw ?? ""}`);
+  }
+  return port;
+}
