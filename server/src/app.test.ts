@@ -214,6 +214,68 @@ describe("Notes API", () => {
     expect(del.body.error).toBe("note not found");
   });
 
+  it("exports notes as JSON by default", async () => {
+    await request(app).post("/api/notes").send({ title: "first", body: "one" });
+    const res = await request(app).get("/api/notes/export");
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/application\/json/);
+    expect(res.headers["content-disposition"]).toMatch(
+      /^attachment; filename="notes-\d{4}-\d{2}-\d{2}\.json"$/,
+    );
+    expect(JSON.parse(res.text)).toEqual(
+      (await request(app).get("/api/notes")).body,
+    );
+  });
+
+  it("exports notes as Markdown", async () => {
+    await request(app)
+      .post("/api/notes")
+      .send({ title: "Shopping\nlist", body: "milk\nbread" });
+    const res = await request(app).get("/api/notes/export?format=md");
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/text\/markdown/);
+    expect(res.headers["content-disposition"]).toMatch(
+      /^attachment; filename="notes-\d{4}-\d{2}-\d{2}\.md"$/,
+    );
+    expect(res.text).toContain("# Notes");
+    expect(res.text).toContain("## Shopping list");
+    expect(res.text).toContain("milk\nbread");
+  });
+
+  it("exports an empty Markdown document when there are no notes", async () => {
+    const res = await request(app).get("/api/notes/export?format=markdown");
+    expect(res.status).toBe(200);
+    expect(res.text).toContain("_No notes yet._");
+  });
+
+  it("rejects an unknown export format", async () => {
+    const res = await request(app).get("/api/notes/export?format=pdf");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/json or markdown/);
+  });
+
+  it("does not treat the export path as a note id", async () => {
+    const created = await request(app).post("/api/notes").send({ title: "kept" });
+    const res = await request(app).get("/api/notes/export");
+    expect(res.status).toBe(200);
+    expect(JSON.parse(res.text)[0].id).toBe(created.body.id);
+  });
+
+  it("returns 503 when exporting while the data file is unreadable", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "notes-export-"));
+    const file = join(dir, "notes.json");
+    try {
+      writeFileSync(file, "{not json", "utf8");
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const persisted = createApp(new NotesStore(file));
+      const res = await request(persisted).get("/api/notes/export");
+      expect(res.status).toBe(503);
+      expect(res.body.error).toMatch(/could not be loaded/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("returns JSON 404 for unknown API routes", async () => {
     const res = await request(app).get("/api/does-not-exist");
     expect(res.status).toBe(404);

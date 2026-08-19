@@ -1,7 +1,7 @@
 import { extname, resolve, sep } from "node:path";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
-import { NotesStore, PersistError, ValidationError } from "./notesStore.js";
+import { type Note, NotesStore, PersistError, ValidationError } from "./notesStore.js";
 
 export interface AppOptions {
   staticDir?: string;
@@ -33,6 +33,27 @@ export function createApp(
 
   app.get("/api/notes", (_req: Request, res: Response) => {
     res.json(store.list());
+  });
+
+  // Registered before `/api/notes/:id` so "export" is not read as a note id.
+  app.get("/api/notes/export", (req: Request, res: Response) => {
+    const format = parseExportFormat(req.query.format);
+    if (!format) {
+      res.status(400).json({ error: "format must be json or markdown" });
+      return;
+    }
+    const notes = store.list();
+    const exportedAt = new Date();
+    const stamp = exportedAt.toISOString().slice(0, 10);
+    if (format === "markdown") {
+      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="notes-${stamp}.md"`);
+      res.send(renderMarkdown(notes, exportedAt.toISOString()));
+      return;
+    }
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="notes-${stamp}.json"`);
+    res.send(JSON.stringify(notes, null, 2));
   });
 
   app.get("/api/notes/:id", (req: Request, res: Response) => {
@@ -137,6 +158,38 @@ export function createApp(
   });
 
   return app;
+}
+
+function parseExportFormat(value: unknown): "json" | "markdown" | undefined {
+  if (value === undefined) {
+    return "json";
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const format = value.trim().toLowerCase();
+  if (format === "" || format === "json") {
+    return "json";
+  }
+  if (format === "markdown" || format === "md") {
+    return "markdown";
+  }
+  return undefined;
+}
+
+function renderMarkdown(notes: Note[], exportedAt: string): string {
+  const lines = ["# Notes", "", `_Exported ${exportedAt}_`, ""];
+  if (notes.length === 0) {
+    lines.push("_No notes yet._", "");
+  }
+  for (const note of notes) {
+    lines.push(`## ${note.title.replace(/\s+/g, " ")}`, "");
+    lines.push(`_Created ${note.createdAt} · Updated ${note.updatedAt}_`, "");
+    if (note.body) {
+      lines.push(note.body, "");
+    }
+  }
+  return lines.join("\n");
 }
 
 function httpStatus(err: unknown): number {

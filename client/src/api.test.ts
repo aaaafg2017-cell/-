@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { ApiError, parseNote, parseNotes } from "./api.ts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  ApiError,
+  defaultExportFilename,
+  exportNotes,
+  filenameFromDisposition,
+  parseNote,
+  parseNotes,
+} from "./api.ts";
 
 const valid = {
   id: "1",
@@ -89,5 +96,86 @@ describe("parseNotes", () => {
       "newer",
       "older",
     ]);
+  });
+});
+
+describe("filenameFromDisposition", () => {
+  it("reads a quoted filename", () => {
+    expect(filenameFromDisposition('attachment; filename="notes-2024-01-01.json"')).toBe(
+      "notes-2024-01-01.json",
+    );
+  });
+
+  it("reads an unquoted filename", () => {
+    expect(filenameFromDisposition("attachment; filename=notes.md")).toBe("notes.md");
+  });
+
+  it("ignores a missing header or a path-like filename", () => {
+    expect(filenameFromDisposition(null)).toBeUndefined();
+    expect(filenameFromDisposition("attachment")).toBeUndefined();
+    expect(filenameFromDisposition('attachment; filename="../../etc/passwd"')).toBeUndefined();
+  });
+});
+
+describe("defaultExportFilename", () => {
+  it("names files by format and date", () => {
+    const day = new Date("2024-03-05T10:00:00.000Z");
+    expect(defaultExportFilename("json", day)).toBe("notes-2024-03-05.json");
+    expect(defaultExportFilename("markdown", day)).toBe("notes-2024-03-05.md");
+  });
+});
+
+describe("exportNotes", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("requests the chosen format and uses the server filename", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response("# Notes", {
+          status: 200,
+          headers: {
+            "Content-Type": "text/markdown; charset=utf-8",
+            "Content-Disposition": 'attachment; filename="notes-2024-01-01.md"',
+          },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const file = await exportNotes("markdown");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/notes/export?format=markdown",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+    expect(file.filename).toBe("notes-2024-01-01.md");
+    expect(await file.blob.text()).toBe("# Notes");
+  });
+
+  it("falls back to a generated filename", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("[]", { status: 200 })),
+    );
+    const file = await exportNotes("json");
+    expect(file.filename).toMatch(/^notes-\d{4}-\d{2}-\d{2}\.json$/);
+  });
+
+  it("throws an ApiError when the export fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: "notes data file could not be loaded" }), {
+            status: 503,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    );
+    await expect(exportNotes("json")).rejects.toMatchObject({
+      name: "ApiError",
+      status: 503,
+      message: "notes data file could not be loaded",
+    });
   });
 });

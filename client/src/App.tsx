@@ -4,8 +4,10 @@ import {
   compareNotes,
   createNote,
   deleteNote,
+  exportNotes,
   fetchNotes,
   updateNote,
+  type ExportFormat,
   type Note,
 } from "./api.ts";
 import { copy, detectLocale, normalizeForSearch, type Locale } from "./i18n.ts";
@@ -63,6 +65,19 @@ function errorMessage(err: unknown, t: (typeof copy)[Locale]): string {
   return err instanceof Error ? err.message : t.networkError;
 }
 
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.rel = "noopener";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  // Revoking synchronously can cancel the download in some browsers.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 function formatTimestamp(iso: string, locale: ReturnType<typeof detectLocale>): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) {
@@ -84,6 +99,7 @@ export function App() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<ExportFormat | null>(null);
   const refreshId = useRef(0);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const editingIdRef = useRef<string | null>(null);
@@ -346,6 +362,28 @@ export function App() {
     }
   }
 
+  async function handleExport(format: ExportFormat) {
+    if (exporting) {
+      return;
+    }
+    setExporting(format);
+    try {
+      const file = await exportNotes(format);
+      downloadBlob(file.blob, file.filename);
+      if (!loadFailedRef.current) {
+        setError(null);
+      }
+    } catch (err) {
+      setError(
+        err instanceof ApiError || isNetworkError(err)
+          ? errorMessage(err, t)
+          : t.exportFailed,
+      );
+    } finally {
+      setExporting(null);
+    }
+  }
+
   const showList = !loading && notes.length > 0;
   const showEmpty = !loading && notes.length === 0 && !loadFailed;
   const formLocked = saving || Boolean(deletingId);
@@ -440,18 +478,38 @@ export function App() {
         <p className="app__empty">{t.empty}</p>
       ) : showList ? (
         <>
-          <label className="app__search">
-            <span className="visually-hidden">{t.searchLabel}</span>
-            <input
-              className="note-form__input"
-              type="search"
-              placeholder={t.searchPlaceholder}
-              aria-label={t.searchLabel}
-              dir="auto"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </label>
+          <div className="app__toolbar">
+            <label className="app__search">
+              <span className="visually-hidden">{t.searchLabel}</span>
+              <input
+                className="note-form__input"
+                type="search"
+                placeholder={t.searchPlaceholder}
+                aria-label={t.searchLabel}
+                dir="auto"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </label>
+            <div className="app__export" role="group" aria-label={t.exportLabel}>
+              <button
+                className="app__export-button"
+                type="button"
+                onClick={() => void handleExport("json")}
+                disabled={exporting !== null}
+              >
+                {exporting === "json" ? t.loading : t.exportJson}
+              </button>
+              <button
+                className="app__export-button"
+                type="button"
+                onClick={() => void handleExport("markdown")}
+                disabled={exporting !== null}
+              >
+                {exporting === "markdown" ? t.loading : t.exportMarkdown}
+              </button>
+            </div>
+          </div>
           {visibleNotes.length === 0 ? (
             <p className="app__empty">{t.noResults}</p>
           ) : (
