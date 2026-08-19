@@ -36,6 +36,9 @@ async function handle<T>(res: Response): Promise<T> {
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
 
+const TITLE_MAX_LENGTH = 200;
+const BODY_MAX_LENGTH = 8000;
+
 export function parseNote(value: unknown): Note | undefined {
   if (typeof value !== "object" || value === null) {
     return undefined;
@@ -43,19 +46,34 @@ export function parseNote(value: unknown): Note | undefined {
   const record = value as Record<string, unknown>;
   if (
     typeof record.id !== "string" ||
-    record.id.length === 0 ||
+    record.id.trim().length === 0 ||
     typeof record.title !== "string" ||
     typeof record.body !== "string" ||
     typeof record.createdAt !== "string"
   ) {
     return undefined;
   }
+  const title = record.title.trim();
+  const body = record.body.trim();
+  if (
+    title.length === 0 ||
+    title.length > TITLE_MAX_LENGTH ||
+    body.length > BODY_MAX_LENGTH
+  ) {
+    return undefined;
+  }
+  if (Number.isNaN(Date.parse(record.createdAt))) {
+    return undefined;
+  }
   const updatedAt =
     typeof record.updatedAt === "string" ? record.updatedAt : record.createdAt;
+  if (Number.isNaN(Date.parse(updatedAt))) {
+    return undefined;
+  }
   return {
     id: record.id,
-    title: record.title,
-    body: record.body,
+    title,
+    body,
     createdAt: record.createdAt,
     updatedAt,
   };

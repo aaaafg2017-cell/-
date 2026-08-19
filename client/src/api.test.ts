@@ -27,10 +27,14 @@ describe("parseNote", () => {
     });
   });
 
-  it("rejects missing fields and empty ids", () => {
+  it("rejects missing fields, empty ids, empty titles, and over-length text", () => {
     expect(parseNote(null)).toBeUndefined();
     expect(parseNote({ ...valid, id: "" })).toBeUndefined();
     expect(parseNote({ ...valid, title: 1 })).toBeUndefined();
+    expect(parseNote({ ...valid, title: "   " })).toBeUndefined();
+    expect(parseNote({ ...valid, title: "x".repeat(201) })).toBeUndefined();
+    expect(parseNote({ ...valid, body: "y".repeat(8001) })).toBeUndefined();
+    expect(parseNote({ ...valid, createdAt: "not-a-date" })).toBeUndefined();
   });
 });
 

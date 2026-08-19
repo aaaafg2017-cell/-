@@ -41,6 +41,19 @@ function errorMessage(err: unknown, t: (typeof copy)[Locale]): string {
     if (err.status === 413) {
       return t.tooLarge;
     }
+    if (err.status === 400) {
+      const msg = err.message.toLowerCase();
+      if (msg.includes("title is required")) {
+        return t.titleRequired;
+      }
+      if (msg.includes("title must be at most")) {
+        return t.titleTooLong;
+      }
+      if (msg.includes("body must be at most")) {
+        return t.bodyTooLong;
+      }
+      return t.invalidRequest;
+    }
   }
   return err instanceof Error ? err.message : t.networkError;
 }
@@ -273,9 +286,11 @@ export function App() {
       await refresh(INITIAL_LOAD_RETRIES);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404 && editingId) {
+        const missingId = editingId;
         editingIdRef.current = null;
         isDirtyRef.current = true;
         setEditingId(null);
+        setNotes((current) => current.filter((item) => item.id !== missingId));
         setError(t.notFoundRecreate);
       } else {
         setError(errorMessage(err, t));
@@ -307,7 +322,15 @@ export function App() {
       }
       await refresh(INITIAL_LOAD_RETRIES);
     } catch (err) {
-      setError(errorMessage(err, t));
+      if (err instanceof ApiError && err.status === 404) {
+        setNotes((current) => current.filter((item) => item.id !== note.id));
+        if (editingIdRef.current === note.id) {
+          cancelEdit();
+        }
+        setError(t.notFound);
+      } else {
+        setError(errorMessage(err, t));
+      }
     } finally {
       inFlightRef.current = false;
       setDeletingId(null);
@@ -448,6 +471,7 @@ export function App() {
                       <button
                         className="note-card__edit"
                         type="button"
+                        aria-label={t.editNote(note.title)}
                         onClick={() => startEdit(note)}
                         disabled={formLocked}
                       >

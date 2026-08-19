@@ -52,6 +52,7 @@ export const copy = {
     save: "Save note",
     cancel: "Cancel",
     edit: "Edit",
+    editNote: (noteTitle: string) => `Edit ${noteTitle}`,
     delete: (noteTitle: string) => `Delete ${noteTitle}`,
     confirmDelete: (noteTitle: string) => `Delete “${noteTitle}”? This cannot be undone.`,
     titleRequired: "Please enter a title.",
@@ -69,6 +70,9 @@ export const copy = {
     notFoundRecreate:
       "That note was deleted. Save again to keep it as a new note.",
     tooLarge: "That note is too large to save.",
+    titleTooLong: "Titles can be at most 200 characters.",
+    bodyTooLong: "Note bodies can be at most 8,000 characters.",
+    invalidRequest: "That note could not be saved.",
     discardChanges: "You have unsaved changes. Discard them?",
   },
   ar: {
@@ -82,6 +86,7 @@ export const copy = {
     save: "حفظ الملاحظة",
     cancel: "إلغاء",
     edit: "تعديل",
+    editNote: (noteTitle: string) => `تعديل ${noteTitle}`,
     delete: (noteTitle: string) => `حذف ${noteTitle}`,
     confirmDelete: (noteTitle: string) => `حذف «${noteTitle}»؟ لا يمكن التراجع عن هذا.`,
     titleRequired: "يرجى إدخال عنوان.",
@@ -99,6 +104,9 @@ export const copy = {
     notFoundRecreate:
       "تم حذف هذه الملاحظة. احفظ مرة أخرى لإبقائها كملاحظة جديدة.",
     tooLarge: "هذه الملاحظة أكبر من أن تُحفظ.",
+    titleTooLong: "يجب ألا يتجاوز العنوان 200 حرف.",
+    bodyTooLong: "يجب ألا يتجاوز نص الملاحظة 8000 حرف.",
+    invalidRequest: "تعذر حفظ هذه الملاحظة.",
     discardChanges: "لديك تغييرات غير محفوظة. هل تريد تجاهلها؟",
   },
 } as const;

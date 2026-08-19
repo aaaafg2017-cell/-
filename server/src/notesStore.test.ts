@@ -117,6 +117,76 @@ describe("NotesStore persistence", () => {
     }
   });
 
+  it("skips empty titles, over-length fields, bad dates, and duplicate ids", () => {
+    const dir = mkdtempSync(join(tmpdir(), "notes-"));
+    const file = join(dir, "notes.json");
+    try {
+      writeFileSync(
+        file,
+        JSON.stringify([
+          {
+            id: "ok",
+            title: "good",
+            body: "",
+            createdAt: "2024-01-01T00:00:00.000Z",
+            updatedAt: "2024-01-01T00:00:00.000Z",
+          },
+          {
+            id: "ok",
+            title: "duplicate should not replace",
+            body: "",
+            createdAt: "2024-02-01T00:00:00.000Z",
+            updatedAt: "2024-02-01T00:00:00.000Z",
+          },
+          {
+            id: "empty-title",
+            title: "   ",
+            body: "",
+            createdAt: "2024-01-01T00:00:00.000Z",
+            updatedAt: "2024-01-01T00:00:00.000Z",
+          },
+          {
+            id: "long-title",
+            title: "x".repeat(201),
+            body: "",
+            createdAt: "2024-01-01T00:00:00.000Z",
+            updatedAt: "2024-01-01T00:00:00.000Z",
+          },
+          {
+            id: "long-body",
+            title: "ok",
+            body: "y".repeat(8001),
+            createdAt: "2024-01-01T00:00:00.000Z",
+            updatedAt: "2024-01-01T00:00:00.000Z",
+          },
+          {
+            id: "bad-date",
+            title: "ok",
+            body: "",
+            createdAt: "not-a-date",
+            updatedAt: "not-a-date",
+          },
+        ]),
+        "utf8",
+      );
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const store = new NotesStore(file);
+      expect(store.persistStatus()).toBe("degraded");
+      expect(store.list()).toEqual([
+        {
+          id: "ok",
+          title: "good",
+          body: "",
+          createdAt: "2024-01-01T00:00:00.000Z",
+          updatedAt: "2024-01-01T00:00:00.000Z",
+        },
+      ]);
+      expect(() => store.create({ title: "x" })).toThrow(/invalid records/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("does not bump updatedAt when PUT applies the same title and body", () => {
     const store = new NotesStore();
     const created = store.create({ title: "same", body: "body" });

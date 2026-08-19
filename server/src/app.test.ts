@@ -220,6 +220,54 @@ describe("Notes API", () => {
     expect(res.body.error).toBe("not found");
   });
 
+  it("lists valid notes and rejects writes when some records are invalid", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "notes-"));
+    const file = join(dir, "notes.json");
+    try {
+      writeFileSync(
+        file,
+        JSON.stringify([
+          {
+            id: "ok",
+            title: "good",
+            body: "",
+            createdAt: "2024-01-01T00:00:00.000Z",
+            updatedAt: "2024-01-01T00:00:00.000Z",
+          },
+          { not: "a note" },
+        ]),
+        "utf8",
+      );
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const persisted = createApp(new NotesStore(file));
+
+      const list = await request(persisted).get("/api/notes");
+      expect(list.status).toBe(200);
+      expect(list.body).toEqual([
+        {
+          id: "ok",
+          title: "good",
+          body: "",
+          createdAt: "2024-01-01T00:00:00.000Z",
+          updatedAt: "2024-01-01T00:00:00.000Z",
+        },
+      ]);
+
+      const health = await request(persisted).get("/api/health");
+      expect(health.status).toBe(200);
+      expect(health.body.persist).toBe("degraded");
+      expect(health.body.status).toBe("degraded");
+
+      const res = await request(persisted)
+        .post("/api/notes")
+        .send({ title: "x" });
+      expect(res.status).toBe(503);
+      expect(res.body.error).toMatch(/invalid records/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("returns 503 when the data file is corrupt", async () => {
     const dir = mkdtempSync(join(tmpdir(), "notes-"));
     const file = join(dir, "notes.json");
