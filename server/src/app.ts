@@ -20,6 +20,7 @@ export function createApp(
 
   app.use("/api", (_req: Request, res: Response, next: NextFunction) => {
     res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   });
 

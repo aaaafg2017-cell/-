@@ -157,21 +157,31 @@ export function App() {
     void refresh(INITIAL_LOAD_RETRIES);
   }, []);
 
-  const visibleNotes = useMemo(() => {
+  const matchingNotes = useMemo(() => {
     const needle = normalizeForSearch(query.trim());
-    return notes.filter((note) => {
-      if (editingId === note.id) {
-        return true;
-      }
-      if (!needle) {
-        return true;
-      }
-      return (
+    if (!needle) {
+      return notes;
+    }
+    return notes.filter(
+      (note) =>
         normalizeForSearch(note.title).includes(needle) ||
-        normalizeForSearch(note.body).includes(needle)
-      );
-    });
-  }, [notes, query, editingId]);
+        normalizeForSearch(note.body).includes(needle),
+    );
+  }, [notes, query]);
+
+  const visibleNotes = useMemo(() => {
+    if (!editingId) {
+      return matchingNotes;
+    }
+    if (matchingNotes.some((note) => note.id === editingId)) {
+      return matchingNotes;
+    }
+    const current = notes.find((note) => note.id === editingId);
+    if (!current) {
+      return matchingNotes;
+    }
+    return [current, ...matchingNotes].sort(compareNotes);
+  }, [editingId, matchingNotes, notes]);
 
   const isDirty = useMemo(() => {
     if (editingId) {
@@ -319,12 +329,19 @@ export function App() {
     if (inFlightRef.current || loading || saving || deletingId) {
       return;
     }
-    if (visibleNotes.length === 0) {
+    if (matchingNotes.length === 0) {
       setError(t.exportEmpty);
       return;
     }
-    const file = renderNotesExport(visibleNotes, format);
-    downloadText(file.filename, file.body, file.mime);
+    try {
+      const file = renderNotesExport(matchingNotes, format);
+      downloadText(file.filename, file.body, file.mime);
+      if (!loadFailedRef.current) {
+        setError(null);
+      }
+    } catch {
+      setError(t.exportError);
+    }
   }
 
   async function handleDelete(note: Note) {
@@ -474,7 +491,7 @@ export function App() {
               <button
                 className="app__export-button"
                 type="button"
-                disabled={formLocked || visibleNotes.length === 0}
+                disabled={formLocked || matchingNotes.length === 0}
                 onClick={() => handleExport("json")}
               >
                 {t.exportJson}
@@ -482,7 +499,7 @@ export function App() {
               <button
                 className="app__export-button"
                 type="button"
-                disabled={formLocked || visibleNotes.length === 0}
+                disabled={formLocked || matchingNotes.length === 0}
                 onClick={() => handleExport("md")}
               >
                 {t.exportMarkdown}

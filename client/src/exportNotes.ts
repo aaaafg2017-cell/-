@@ -38,7 +38,7 @@ export function notesToMarkdown(notes: Note[], exportedAt: string): string {
     if (index > 0) {
       lines.push("---", "");
     }
-    lines.push(`## ${note.title.replace(/\s+/g, " ").trim()}`);
+    lines.push(`## ${escapeMarkdownHeading(note.title)}`);
     lines.push("");
     if (note.body.trim()) {
       lines.push(note.body, "");
@@ -72,6 +72,9 @@ export function renderNotesExport(
 }
 
 export function downloadText(filename: string, contents: string, mime: string): void {
+  if (typeof URL.createObjectURL !== "function") {
+    throw new Error("object URLs are not supported");
+  }
   const blob = new Blob([contents], { type: mime });
   const url = URL.createObjectURL(blob);
   try {
@@ -82,7 +85,18 @@ export function downloadText(filename: string, contents: string, mime: string): 
     document.body.appendChild(link);
     link.click();
     link.remove();
-  } finally {
+  } catch (err) {
     URL.revokeObjectURL(url);
+    throw err;
   }
+  // Firefox aborts the download if the blob URL is revoked in the same turn.
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function escapeMarkdownHeading(title: string): string {
+  return title
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\\/g, "\\\\")
+    .replace(/#/g, "\\#");
 }

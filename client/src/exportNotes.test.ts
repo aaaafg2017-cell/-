@@ -19,6 +19,7 @@ const notes: Note[] = [
 ];
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -48,6 +49,7 @@ describe("client notes export", () => {
   });
 
   it("triggers a file download", () => {
+    vi.useFakeTimers();
     const createObjectURL = vi.fn(() => "blob:notes");
     const revokeObjectURL = vi.fn();
     vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
@@ -63,6 +65,32 @@ describe("client notes export", () => {
 
     expect(createObjectURL).toHaveBeenCalled();
     expect(click).toHaveBeenCalled();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    vi.runAllTimers();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:notes");
+    vi.useRealTimers();
+  });
+
+  it("escapes markdown headings so titles cannot inject structure", () => {
+    const md = notesToMarkdown(
+      [
+        {
+          id: "x",
+          title: "# injected",
+          body: "",
+          createdAt: "2026-08-01T10:00:00.000Z",
+          updatedAt: "2026-08-01T10:00:00.000Z",
+        },
+      ],
+      "2026-08-19T08:00:00.000Z",
+    );
+    expect(md).toContain("## \\# injected");
+  });
+
+  it("throws when the browser cannot create object URLs", () => {
+    vi.stubGlobal("URL", { createObjectURL: undefined, revokeObjectURL: vi.fn() });
+    expect(() =>
+      downloadText("notes.json", "{}", "application/json"),
+    ).toThrow(/object URLs are not supported/);
   });
 });

@@ -21,6 +21,7 @@ describe("Notes API", () => {
     expect(res.body.status).toBe("ok");
     expect(res.body.persist).toBe("ok");
     expect(res.headers["cache-control"]).toMatch(/no-store/i);
+    expect(res.headers["x-content-type-options"]).toBe("nosniff");
     expect(res.headers["x-powered-by"]).toBeUndefined();
   });
 
@@ -339,7 +340,7 @@ describe("Notes API", () => {
         .post("/api/notes")
         .send({ title: "x" });
       expect(res.status).toBe(503);
-      expect(res.body.error).toMatch(/refusing to overwrite/);
+      expect(res.body.error).toMatch(/could not be loaded; refusing to overwrite/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

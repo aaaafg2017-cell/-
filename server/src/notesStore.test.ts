@@ -74,7 +74,9 @@ describe("NotesStore persistence", () => {
       const store = new NotesStore(file);
       expect(store.persistStatus()).toBe("unavailable");
       expect(() => store.list()).toThrow(/could not be loaded/);
-      expect(() => store.create({ title: "nope" })).toThrow(/refusing to overwrite/);
+      expect(() => store.create({ title: "nope" })).toThrow(
+        /could not be loaded; refusing to overwrite/,
+      );
       expect(readFileSync(file, "utf8")).toBe(corrupt);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -111,7 +113,9 @@ describe("NotesStore persistence", () => {
           updatedAt: "2024-01-01T00:00:00.000Z",
         },
       ]);
-      expect(() => store.create({ title: "x" })).toThrow(/refusing to overwrite/);
+      expect(() => store.create({ title: "x" })).toThrow(/invalid records/);
+      expect(() => store.delete("ok")).toThrow(/invalid records/);
+      expect(store.list()).toHaveLength(1);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -182,6 +186,8 @@ describe("NotesStore persistence", () => {
         },
       ]);
       expect(() => store.create({ title: "x" })).toThrow(/invalid records/);
+      expect(() => store.delete("ok")).toThrow(/invalid records/);
+      expect(store.list()).toHaveLength(1);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

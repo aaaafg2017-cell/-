@@ -59,7 +59,7 @@ export function notesToMarkdown(notes: NoteLike[], exportedAt: string): string {
     if (index > 0) {
       lines.push("---", "");
     }
-    lines.push(`## ${note.title.replace(/\s+/g, " ").trim()}`);
+    lines.push(`## ${escapeMarkdownHeading(note.title)}`);
     lines.push("");
     if (note.body.trim()) {
       lines.push(note.body, "");
@@ -90,4 +90,12 @@ export function renderNotesExport(
     filename,
     contentType: "application/json; charset=utf-8",
   };
+}
+
+function escapeMarkdownHeading(title: string): string {
+  return title
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\\/g, "\\\\")
+    .replace(/#/g, "\\#");
 }
