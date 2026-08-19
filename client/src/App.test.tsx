@@ -301,6 +301,8 @@ describe("App", () => {
     render(<App />);
     expect(await screen.findByRole("heading", { name: "الملاحظات" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "إضافة ملاحظة" })).toBeInTheDocument();
+    expect(document.documentElement.dir).toBe("rtl");
+    expect(document.documentElement.lang).toBe("ar");
   });
 
   it("marks the title field invalid when submitting without a title", async () => {
@@ -948,5 +950,87 @@ describe("App", () => {
     );
     expect(screen.getByRole("button", { name: /add note/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/note title/i)).toHaveValue("Draft kept");
+    expect(screen.queryByRole("heading", { name: "Draft" })).not.toBeInTheDocument();
+  });
+
+  it("removes a note from the list when delete returns 404", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "Already gone",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        const method = init?.method ?? "GET";
+        if (url.endsWith("/api/notes") && method === "GET") {
+          return jsonResponse(notes);
+        }
+        if (method === "DELETE") {
+          return jsonResponse({ error: "note not found" }, 404);
+        }
+        return jsonResponse({ error: "not found" }, 404);
+      }),
+    );
+
+    render(<App />);
+    expect(await screen.findByText("Already gone")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /delete already gone/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/no longer exists/i);
+    expect(screen.queryByText("Already gone")).not.toBeInTheDocument();
+    expect(await screen.findByText(/no notes yet/i)).toBeInTheDocument();
+  });
+
+  it("labels edit buttons with the note title", async () => {
+    const now = new Date().toISOString();
+    notes.push(
+      { id: "1", title: "Buy milk", body: "", createdAt: now, updatedAt: now },
+      { id: "2", title: "Walk dog", body: "", createdAt: now, updatedAt: now },
+    );
+    render(<App />);
+    expect(await screen.findByText("Buy milk")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /edit buy milk/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /edit walk dog/i })).toBeInTheDocument();
+  });
+
+  it("localizes validation errors from the API", async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, "language", {
+      configurable: true,
+      value: "ar-SA",
+    });
+    Object.defineProperty(navigator, "languages", {
+      configurable: true,
+      value: ["ar-SA"],
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        const method = init?.method ?? "GET";
+        if (url.endsWith("/api/notes") && method === "GET") {
+          return jsonResponse([]);
+        }
+        if (method === "POST") {
+          return jsonResponse({ error: "title must be at most 200 characters" }, 400);
+        }
+        return jsonResponse({ error: "not found" }, 404);
+      }),
+    );
+
+    render(<App />);
+    await screen.findByText(/لا توجد ملاحظات بعد/);
+    await user.type(screen.getByLabelText("عنوان الملاحظة"), "عنوان");
+    await user.click(screen.getByRole("button", { name: "إضافة ملاحظة" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "يجب ألا يتجاوز العنوان 200 حرف.",
+    );
   });
 });

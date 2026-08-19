@@ -143,11 +143,15 @@ export class NotesStore {
       let skipped = 0;
       for (const item of parsed) {
         const note = asNote(item);
-        if (note) {
-          this.notes.set(note.id, note);
-        } else {
+        if (!note) {
           skipped += 1;
+          continue;
         }
+        if (this.notes.has(note.id)) {
+          skipped += 1;
+          continue;
+        }
+        this.notes.set(note.id, note);
       }
       if (skipped > 0) {
         this.loadFailed = true;
@@ -187,7 +191,9 @@ export class NotesStore {
     }
     if (this.loadFailed) {
       throw new PersistError(
-        "notes data file could not be loaded; refusing to overwrite it",
+        this.notes.size === 0
+          ? "notes data file could not be loaded; refusing to overwrite it"
+          : "notes data file has invalid records; refusing to overwrite it",
       );
     }
     mkdirSync(dirname(this.persistPath), { recursive: true });
@@ -248,21 +254,32 @@ function asNote(value: unknown): Note | undefined {
   const record = value as Record<string, unknown>;
   if (
     typeof record.id !== "string" ||
+    record.id.trim().length === 0 ||
     typeof record.title !== "string" ||
     typeof record.body !== "string" ||
     typeof record.createdAt !== "string"
   ) {
     return undefined;
   }
+  if (Number.isNaN(Date.parse(record.createdAt))) {
+    return undefined;
+  }
   const updatedAt =
     typeof record.updatedAt === "string" ? record.updatedAt : record.createdAt;
-  return {
-    id: record.id,
-    title: record.title,
-    body: record.body,
-    createdAt: record.createdAt,
-    updatedAt,
-  };
+  if (Number.isNaN(Date.parse(updatedAt))) {
+    return undefined;
+  }
+  try {
+    return {
+      id: record.id,
+      title: normalizeTitle(record.title),
+      body: normalizeBody(record.body),
+      createdAt: record.createdAt,
+      updatedAt,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {

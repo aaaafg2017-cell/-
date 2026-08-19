@@ -59,8 +59,10 @@ missing titles return `400`. `PUT` is a partial update: omitted fields keep
 their current values. Unknown `/api` routes return JSON `404`. Notes are
 saved to `server/data/notes.json` (override with `NOTES_DATA_FILE`) so they survive
 API restarts. Writes are atomic (`tmp` + rename). The API file watcher ignores
-`server/data` so saving a note does not restart the server. A corrupt file is never
-overwritten, and listing notes then returns `503` instead of an empty list.
+`server/data` so saving a note does not restart the server. A corrupt or unreadable file is never overwritten, and listing notes then
+returns `503` instead of an empty list. Invalid records (empty titles, over-length
+fields, bad dates, or duplicate ids) are skipped: health reports `degraded`,
+valid notes can still be listed, and writes return `503` until the file is repaired.
 The UI follows the browser language (including Arabic/RTL), supports search
 (including Arabic alef/tashkeel variants), and asks before deleting.
 
