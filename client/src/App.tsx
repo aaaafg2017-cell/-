@@ -8,6 +8,15 @@ import {
   updateNote,
   type Note,
 } from "./api.ts";
+import {
+  downloadTextFile,
+  exportMimeType,
+  formatNoteMarkdown,
+  formatNotesJson,
+  formatNotesMarkdown,
+  noteExportFilename,
+  notesExportFilename,
+} from "./exportNotes.ts";
 import { copy, detectLocale, normalizeForSearch, type Locale } from "./i18n.ts";
 
 export const TITLE_MAX_LENGTH = 200;
@@ -346,6 +355,29 @@ export function App() {
     }
   }
 
+  function handleExport(format: "json" | "markdown") {
+    if (visibleNotes.length === 0) {
+      return;
+    }
+    const content =
+      format === "json"
+        ? formatNotesJson(visibleNotes)
+        : formatNotesMarkdown(visibleNotes);
+    downloadTextFile(
+      notesExportFilename(format),
+      content,
+      exportMimeType(format),
+    );
+  }
+
+  function handleExportNote(note: Note) {
+    downloadTextFile(
+      noteExportFilename(note, "markdown"),
+      `${formatNoteMarkdown(note)}\n`,
+      exportMimeType("markdown"),
+    );
+  }
+
   const showList = !loading && notes.length > 0;
   const showEmpty = !loading && notes.length === 0 && !loadFailed;
   const formLocked = saving || Boolean(deletingId);
@@ -440,6 +472,34 @@ export function App() {
         <p className="app__empty">{t.empty}</p>
       ) : showList ? (
         <>
+          <section className="app__outputs" aria-labelledby="system-outputs-heading">
+            <div className="app__outputs-copy">
+              <h2 id="system-outputs-heading">{t.systemOutputs}</h2>
+              <p>
+                {query.trim()
+                  ? t.matchingCount(visibleNotes.length)
+                  : t.notesCount(notes.length)}
+              </p>
+            </div>
+            <div className="app__outputs-actions">
+              <button
+                className="note-form__cancel"
+                type="button"
+                onClick={() => handleExport("json")}
+                disabled={visibleNotes.length === 0}
+              >
+                {t.exportJson}
+              </button>
+              <button
+                className="note-form__button"
+                type="button"
+                onClick={() => handleExport("markdown")}
+                disabled={visibleNotes.length === 0}
+              >
+                {t.exportMarkdown}
+              </button>
+            </div>
+          </section>
           <label className="app__search">
             <span className="visually-hidden">{t.searchLabel}</span>
             <input
@@ -486,6 +546,14 @@ export function App() {
                         disabled={formLocked}
                       >
                         {t.edit}
+                      </button>
+                      <button
+                        className="note-card__edit"
+                        type="button"
+                        aria-label={t.exportNote(note.title)}
+                        onClick={() => handleExportNote(note)}
+                      >
+                        {t.export}
                       </button>
                       <button
                         className="note-card__delete"

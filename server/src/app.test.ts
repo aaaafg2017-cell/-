@@ -220,6 +220,40 @@ describe("Notes API", () => {
     expect(res.body.error).toBe("not found");
   });
 
+  it("exports notes as JSON", async () => {
+    await request(app).post("/api/notes").send({ title: "Alpha", body: "one" });
+    const res = await request(app).get("/api/notes/export");
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/application\/json/);
+    expect(res.headers["content-disposition"]).toMatch(
+      /attachment; filename="notes-\d{4}-\d{2}-\d{2}\.json"/,
+    );
+    const parsed = JSON.parse(res.text) as { title: string }[];
+    expect(parsed.map((note) => note.title)).toEqual(["Alpha"]);
+  });
+
+  it("exports notes as Markdown", async () => {
+    await request(app).post("/api/notes").send({ title: "Alpha", body: "one" });
+    const res = await request(app).get("/api/notes/export?format=markdown");
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/text\/markdown/);
+    expect(res.headers["content-disposition"]).toMatch(/filename="notes-.*\.md"/);
+    expect(res.text).toContain("# Alpha");
+    expect(res.text).toContain("one");
+  });
+
+  it("rejects an unknown export format", async () => {
+    const res = await request(app).get("/api/notes/export?format=csv");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("unsupported export format");
+  });
+
+  it("does not treat export as a note id", async () => {
+    const res = await request(app).get("/api/notes/export");
+    expect(res.status).toBe(200);
+    expect(JSON.parse(res.text)).toEqual([]);
+  });
+
   it("lists valid notes and rejects writes when some records are invalid", async () => {
     const dir = mkdtempSync(join(tmpdir(), "notes-"));
     const file = join(dir, "notes.json");

@@ -1,6 +1,13 @@
 import { extname, resolve, sep } from "node:path";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
+import {
+  exportContentType,
+  formatNotesJson,
+  formatNotesMarkdown,
+  notesExportFilename,
+  parseExportFormat,
+} from "./exportNotes.js";
 import { NotesStore, PersistError, ValidationError } from "./notesStore.js";
 
 export interface AppOptions {
@@ -33,6 +40,21 @@ export function createApp(
 
   app.get("/api/notes", (_req: Request, res: Response) => {
     res.json(store.list());
+  });
+
+  app.get("/api/notes/export", (req: Request, res: Response) => {
+    const format = parseExportFormat(req.query.format);
+    if (!format) {
+      res.status(400).json({ error: "unsupported export format" });
+      return;
+    }
+    const notes = store.list();
+    const body =
+      format === "json" ? formatNotesJson(notes) : formatNotesMarkdown(notes);
+    const filename = notesExportFilename(format);
+    res.setHeader("Content-Type", exportContentType(format));
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(body);
   });
 
   app.get("/api/notes/:id", (req: Request, res: Response) => {
