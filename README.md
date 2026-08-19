@@ -68,6 +68,32 @@ valid notes can still be listed, and writes return `503` until the file is repai
 The UI follows the browser language (including Arabic/RTL), supports search
 (including Arabic alef/tashkeel variants, hamza on waw/yeh, and extra spaces), and asks before deleting.
 
+## Exporting notes
+
+Once at least one note exists, the header shows an **Export notes** button
+(**تصدير الملاحظات** in Arabic). It downloads every note — not just the ones
+matching the current search — as `notes-YYYY-MM-DD.json`:
+
+```json
+{
+  "version": 1,
+  "exportedAt": "2026-08-19T07:46:00.000Z",
+  "count": 1,
+  "notes": [
+    {
+      "id": "…",
+      "title": "Buy milk",
+      "body": "2 liters",
+      "createdAt": "2026-08-19T07:40:00.000Z",
+      "updatedAt": "2026-08-19T07:41:00.000Z"
+    }
+  ]
+}
+```
+
+The export runs entirely in the browser from the notes already loaded, so it
+needs no API support and works while the API is unreachable.
+
 ## Project layout
 
 ```

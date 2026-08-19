@@ -1102,4 +1102,144 @@ describe("App", () => {
       "يجب ألا يتجاوز العنوان 200 حرف.",
     );
   });
+
+  describe("export", () => {
+    let downloads: { download: string; blob: Blob }[];
+
+    beforeEach(() => {
+      downloads = [];
+      let pending: Blob | undefined;
+      Object.defineProperty(URL, "createObjectURL", {
+        configurable: true,
+        writable: true,
+        value: (blob: Blob) => {
+          pending = blob;
+          return "blob:notes";
+        },
+      });
+      Object.defineProperty(URL, "revokeObjectURL", {
+        configurable: true,
+        writable: true,
+        value: () => {},
+      });
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(
+        function (this: HTMLAnchorElement) {
+          downloads.push({ download: this.download, blob: pending as Blob });
+        },
+      );
+    });
+
+    afterEach(() => {
+      Reflect.deleteProperty(URL, "createObjectURL");
+      Reflect.deleteProperty(URL, "revokeObjectURL");
+    });
+
+    function readBlob(blob: Blob): Promise<string> {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(blob);
+      });
+    }
+
+    function seedTwoNotes() {
+      notes.push(
+        {
+          id: "1",
+          title: "Buy milk",
+          body: "2 liters",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-02-01T00:00:00.000Z",
+        },
+        {
+          id: "2",
+          title: "ملاحظة",
+          body: "مرحبا",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-05T00:00:00.000Z",
+        },
+      );
+    }
+
+    it("downloads every note as a dated JSON file", async () => {
+      const user = userEvent.setup();
+      seedTwoNotes();
+      render(<App />);
+      expect(await screen.findByText("Buy milk")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: /export notes/i }));
+
+      expect(downloads).toHaveLength(1);
+      expect(downloads[0].download).toMatch(/^notes-\d{4}-\d{2}-\d{2}\.json$/);
+      const payload = JSON.parse(await readBlob(downloads[0].blob));
+      expect(payload.count).toBe(2);
+      expect(payload.notes.map((note: { title: string }) => note.title)).toEqual([
+        "Buy milk",
+        "ملاحظة",
+      ]);
+      expect(payload.notes[1].body).toBe("مرحبا");
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("exports all notes even while a search filters the list", async () => {
+      const user = userEvent.setup();
+      seedTwoNotes();
+      render(<App />);
+      expect(await screen.findByText("Buy milk")).toBeInTheDocument();
+
+      await user.type(screen.getByLabelText(/search notes/i), "milk");
+      expect(screen.queryByText("ملاحظة")).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: /export notes/i }));
+      expect(JSON.parse(await readBlob(downloads[0].blob)).count).toBe(2);
+    });
+
+    it("appears only once there is something to export", async () => {
+      const user = userEvent.setup();
+      render(<App />);
+      await screen.findByText(/no notes yet/i);
+      expect(
+        screen.queryByRole("button", { name: /export notes/i }),
+      ).not.toBeInTheDocument();
+
+      await user.type(screen.getByLabelText(/note title/i), "First");
+      await user.click(screen.getByRole("button", { name: /add note/i }));
+
+      expect(
+        await screen.findByRole("button", { name: /export notes/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("reports an error when the browser cannot download files", async () => {
+      const user = userEvent.setup();
+      seedTwoNotes();
+      render(<App />);
+      expect(await screen.findByText("Buy milk")).toBeInTheDocument();
+      Reflect.deleteProperty(URL, "createObjectURL");
+
+      await user.click(screen.getByRole("button", { name: /export notes/i }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /could not export notes/i,
+      );
+      expect(downloads).toHaveLength(0);
+    });
+
+    it("labels the export button in Arabic", async () => {
+      Object.defineProperty(navigator, "language", {
+        configurable: true,
+        value: "ar-SA",
+      });
+      Object.defineProperty(navigator, "languages", {
+        configurable: true,
+        value: ["ar-SA"],
+      });
+      seedTwoNotes();
+      render(<App />);
+
+      const button = await screen.findByRole("button", { name: "تصدير الملاحظات" });
+      expect(button).toHaveAttribute("title", "تنزيل ملاحظتين بصيغة JSON");
+    });
+  });
 });

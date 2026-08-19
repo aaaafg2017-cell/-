@@ -8,6 +8,7 @@ import {
   updateNote,
   type Note,
 } from "./api.ts";
+import { downloadNotes } from "./export.ts";
 import { copy, detectLocale, normalizeForSearch, type Locale } from "./i18n.ts";
 
 export const TITLE_MAX_LENGTH = 200;
@@ -346,6 +347,20 @@ export function App() {
     }
   }
 
+  function handleExport() {
+    if (notes.length === 0) {
+      return;
+    }
+    try {
+      downloadNotes(notes);
+      if (!loadFailedRef.current) {
+        setError(null);
+      }
+    } catch {
+      setError(t.exportError);
+    }
+  }
+
   const showList = !loading && notes.length > 0;
   const showEmpty = !loading && notes.length === 0 && !loadFailed;
   const formLocked = saving || Boolean(deletingId);
@@ -356,6 +371,18 @@ export function App() {
       <header className="app__header">
         <h1>{t.title}</h1>
         <p className="app__subtitle">{t.subtitle}</p>
+        {notes.length > 0 && (
+          <div className="app__header-actions">
+            <button
+              className="app__export"
+              type="button"
+              onClick={handleExport}
+              title={t.exportHint(notes.length)}
+            >
+              {t.exportNotes}
+            </button>
+          </div>
+        )}
       </header>
 
       <form
