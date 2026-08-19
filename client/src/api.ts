@@ -37,7 +37,11 @@ async function handle<T>(res: Response): Promise<T> {
 }
 
 export async function fetchNotes(): Promise<Note[]> {
-  return handle<Note[]>(await request(`${BASE}/notes`));
+  const data: unknown = await handle<unknown>(await request(`${BASE}/notes`));
+  if (!Array.isArray(data)) {
+    throw new ApiError("invalid notes response", 500);
+  }
+  return data as Note[];
 }
 
 export async function createNote(input: {

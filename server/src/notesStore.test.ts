@@ -116,4 +116,13 @@ describe("NotesStore persistence", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("does not bump updatedAt when PUT applies the same title and body", () => {
+    const store = new NotesStore();
+    const created = store.create({ title: "same", body: "body" });
+    const updated = store.update(created.id, { title: "same", body: " body " });
+    expect(updated?.updatedAt).toBe(created.updatedAt);
+    expect(updated?.title).toBe("same");
+    expect(updated?.body).toBe("body");
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App } from "./App.tsx";
 import type { Note } from "./api.ts";
@@ -543,5 +543,258 @@ describe("App", () => {
     expect(confirm).toHaveBeenCalled();
     expect(screen.getByRole("button", { name: /save note/i })).toBeInTheDocument();
     expect(titleInput).toHaveValue("Changed");
+  });
+
+  it("does not create two notes when the form is submitted twice", async () => {
+    const user = userEvent.setup();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let posts = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        const method = init?.method ?? "GET";
+        if (url.endsWith("/api/notes") && method === "GET") {
+          return jsonResponse(notes);
+        }
+        if (url.endsWith("/api/notes") && method === "POST") {
+          posts += 1;
+          await gate;
+          const parsed = init?.body
+            ? (JSON.parse(String(init.body)) as { title: string; body?: string })
+            : undefined;
+          const now = new Date().toISOString();
+          const note: Note = {
+            id: String(posts),
+            title: parsed?.title ?? "",
+            body: parsed?.body ?? "",
+            createdAt: now,
+            updatedAt: now,
+          };
+          notes.unshift(note);
+          return jsonResponse(note, 201);
+        }
+        return jsonResponse({ error: "not found" }, 404);
+      }),
+    );
+
+    render(<App />);
+    await screen.findByText(/no notes yet/i);
+    await user.type(screen.getByLabelText(/note title/i), "Once");
+    const form = screen.getByLabelText(/note title/i).closest("form");
+    expect(form).toBeTruthy();
+    fireEvent.submit(form!);
+    fireEvent.submit(form!);
+    release();
+
+    await waitFor(() => {
+      expect(screen.getByText("Once")).toBeInTheDocument();
+    });
+    expect(posts).toBe(1);
+  });
+
+  it("disables submit while the first load is in progress", async () => {
+    let resolveGet!: (value: Response) => void;
+    const firstGet = new Promise<Response>((resolve) => {
+      resolveGet = resolve;
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        const method = init?.method ?? "GET";
+        if (url.endsWith("/api/notes") && method === "GET") {
+          return firstGet;
+        }
+        return jsonResponse({ error: "not found" }, 404);
+      }),
+    );
+
+    render(<App />);
+    expect(screen.getByRole("button", { name: /add note/i })).toBeDisabled();
+    resolveGet(jsonResponse(notes));
+    expect(await screen.findByText(/no notes yet/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add note/i })).toBeEnabled();
+  });
+
+  it("does not prompt to discard after a successful save", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm");
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "Draft",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByText("Draft")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /edit/i }));
+    await user.type(screen.getByLabelText(/note title/i), " saved");
+    await user.click(screen.getByRole("button", { name: /save note/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /add note/i })).toBeInTheDocument();
+    });
+
+    confirm.mockClear();
+    await user.keyboard("{Escape}");
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("does not prompt to discard while a save is in flight", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm");
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "Draft",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        const method = init?.method ?? "GET";
+        if (url.endsWith("/api/notes") && method === "GET") {
+          return jsonResponse(notes);
+        }
+        const idMatch = url.match(/\/api\/notes\/([^/]+)$/);
+        if (idMatch && method === "PUT") {
+          await gate;
+          const parsed = init?.body
+            ? (JSON.parse(String(init.body)) as { title: string; body?: string })
+            : undefined;
+          notes[0] = {
+            ...notes[0],
+            title: parsed?.title ?? notes[0].title,
+            body: parsed?.body ?? notes[0].body,
+            updatedAt: new Date().toISOString(),
+          };
+          return jsonResponse(notes[0]);
+        }
+        return jsonResponse({ error: "not found" }, 404);
+      }),
+    );
+
+    render(<App />);
+    expect(await screen.findByText("Draft")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /edit/i }));
+    await user.type(screen.getByLabelText(/note title/i), " saved");
+    fireEvent.submit(screen.getByLabelText(/note title/i).closest("form")!);
+
+    confirm.mockClear();
+    await user.keyboard("{Escape}");
+    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(/note title/i)).toHaveValue("Draft saved");
+
+    release();
+    await waitFor(() => {
+      expect(screen.getByText("Draft saved")).toBeInTheDocument();
+    });
+  });
+
+  it("retries a transient 502 after a successful create", async () => {
+    const user = userEvent.setup();
+    let gets = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        const method = init?.method ?? "GET";
+        const parsed = init?.body
+          ? (JSON.parse(String(init.body)) as { title: string; body?: string })
+          : undefined;
+        if (url.endsWith("/api/notes") && method === "GET") {
+          gets += 1;
+          if (gets === 2) {
+            return jsonResponse({ error: "api unreachable" }, 502);
+          }
+          return jsonResponse(notes);
+        }
+        if (url.endsWith("/api/notes") && method === "POST") {
+          const now = new Date().toISOString();
+          const note: Note = {
+            id: "created-1",
+            title: parsed?.title ?? "",
+            body: parsed?.body ?? "",
+            createdAt: now,
+            updatedAt: now,
+          };
+          notes.unshift(note);
+          return jsonResponse(note, 201);
+        }
+        return jsonResponse({ error: "not found" }, 404);
+      }),
+    );
+
+    render(<App />);
+    await screen.findByText(/no notes yet/i);
+    await user.type(screen.getByLabelText(/note title/i), "Kept after 502");
+    await user.click(screen.getByRole("button", { name: /add note/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Kept after 502")).toBeInTheDocument();
+      expect(gets).toBeGreaterThanOrEqual(3);
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("does not crash when the notes API returns a non-array payload", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ notes: [] })),
+    );
+
+    render(<App />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/invalid notes response/i);
+    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+  });
+
+  it("matches Arabic notes that differ only by alef form", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "أحمد",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByText("أحمد")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/search notes/i), "احمد");
+    expect(screen.getByText("أحمد")).toBeInTheDocument();
+    expect(screen.queryByText(/no notes match/i)).not.toBeInTheDocument();
+  });
+
+  it("disables save until the edited note actually changes", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "Same",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByText("Same")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /edit/i }));
+    expect(screen.getByRole("button", { name: /save note/i })).toBeDisabled();
+    await user.type(screen.getByLabelText(/note title/i), "!");
+    expect(screen.getByRole("button", { name: /save note/i })).toBeEnabled();
   });
 });
