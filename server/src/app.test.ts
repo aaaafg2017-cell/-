@@ -117,6 +117,51 @@ describe("Notes API", () => {
     ]);
   });
 
+  it("exports notes as a JSON attachment", async () => {
+    await request(app)
+      .post("/api/notes")
+      .send({ title: "Buy milk", body: "2 liters" });
+
+    const res = await request(app).get("/api/notes/export");
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/application\/json/);
+    expect(res.headers["content-disposition"]).toMatch(
+      /attachment; filename="notes-\d{4}-\d{2}-\d{2}\.json"/,
+    );
+    expect(res.body.count).toBe(1);
+    expect(res.body.notes).toEqual([
+      expect.objectContaining({ title: "Buy milk", body: "2 liters" }),
+    ]);
+    expect(res.body.exportedAt).toBeTruthy();
+  });
+
+  it("exports notes as Markdown", async () => {
+    await request(app)
+      .post("/api/notes")
+      .send({ title: "Walk dog", body: "evening" });
+
+    const res = await request(app).get("/api/notes/export?format=md");
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/text\/markdown/);
+    expect(res.headers["content-disposition"]).toMatch(/notes-\d{4}-\d{2}-\d{2}\.md/);
+    expect(res.text).toContain("# Notes");
+    expect(res.text).toContain("## Walk dog");
+    expect(res.text).toContain("evening");
+    expect(res.text).toContain("Count: 1");
+  });
+
+  it("rejects an unknown export format", async () => {
+    const res = await request(app).get("/api/notes/export?format=csv");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/json or md/);
+  });
+
+  it("does not treat export as a note id", async () => {
+    const res = await request(app).get("/api/notes/export");
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ count: 0, notes: [] });
+  });
+
   it("fetches a single note", async () => {
     const created = await request(app)
       .post("/api/notes")
@@ -278,6 +323,9 @@ describe("Notes API", () => {
       const list = await request(persisted).get("/api/notes");
       expect(list.status).toBe(503);
       expect(list.body.error).toMatch(/could not be loaded/);
+
+      const exported = await request(persisted).get("/api/notes/export");
+      expect(exported.status).toBe(503);
 
       const missing = await request(persisted).get("/api/notes/any-id");
       expect(missing.status).toBe(503);

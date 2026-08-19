@@ -242,6 +242,94 @@ describe("App", () => {
     expect(screen.queryByText("Buy milk")).not.toBeInTheDocument();
   });
 
+  it("downloads visible notes as JSON and Markdown", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push(
+      { id: "1", title: "Buy milk", body: "2 liters", createdAt: now, updatedAt: now },
+      { id: "2", title: "Walk dog", body: "evening", createdAt: now, updatedAt: now },
+    );
+    const createObjectURL = vi.fn(() => "blob:notes");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    const downloads: { name: string; href: string }[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(
+      function (this: HTMLAnchorElement) {
+        downloads.push({ name: this.download, href: this.href });
+      },
+    );
+
+    render(<App />);
+    expect(await screen.findByText("Buy milk")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /export json/i }));
+    await user.click(screen.getByRole("button", { name: /export markdown/i }));
+
+    expect(downloads).toHaveLength(2);
+    expect(downloads[0]?.name).toMatch(/^notes-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(downloads[1]?.name).toMatch(/^notes-\d{4}-\d{2}-\d{2}\.md$/);
+    expect(createObjectURL).toHaveBeenCalledTimes(2);
+    expect(revokeObjectURL).toHaveBeenCalled();
+  });
+
+  it("exports only notes matching the current search", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push(
+      { id: "1", title: "Buy milk", body: "2 liters", createdAt: now, updatedAt: now },
+      { id: "2", title: "Walk dog", body: "evening", createdAt: now, updatedAt: now },
+    );
+    const blobs: Blob[] = [];
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn((blob: Blob) => {
+        blobs.push(blob);
+        return `blob:notes-${blobs.length}`;
+      }),
+      revokeObjectURL: vi.fn(),
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    render(<App />);
+    expect(await screen.findByText("Buy milk")).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/search notes/i), "dog");
+    await user.click(screen.getByRole("button", { name: /export json/i }));
+
+    expect(blobs).toHaveLength(1);
+    const text = await blobs[0].text();
+    const payload = JSON.parse(text) as { count: number; notes: Note[] };
+    expect(payload.count).toBe(1);
+    expect(payload.notes.map((note) => note.title)).toEqual(["Walk dog"]);
+  });
+
+  it("hides export controls when there are no notes", async () => {
+    render(<App />);
+    expect(await screen.findByText(/no notes yet/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /export json/i })).not.toBeInTheDocument();
+  });
+
+  it("labels export in Arabic", async () => {
+    Object.defineProperty(navigator, "language", {
+      configurable: true,
+      value: "ar-SA",
+    });
+    Object.defineProperty(navigator, "languages", {
+      configurable: true,
+      value: ["ar-SA"],
+    });
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "شراء حليب",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByText("شراء حليب")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "إخراج JSON" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "إخراج Markdown" })).toBeInTheDocument();
+  });
+
   it("clears search after creating a note so it stays visible", async () => {
     const user = userEvent.setup();
     const now = new Date().toISOString();
