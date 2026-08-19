@@ -50,6 +50,10 @@ describe("parseNote", () => {
     expect(parseNote({ ...valid, body: "y".repeat(8001) })).toBeUndefined();
     expect(parseNote({ ...valid, createdAt: "not-a-date" })).toBeUndefined();
   });
+
+  it("trims padded ids", () => {
+    expect(parseNote({ ...valid, id: "  1  " })?.id).toBe("1");
+  });
 });
 
 describe("parseNotes", () => {
@@ -88,6 +92,16 @@ describe("parseNotes", () => {
     expect(parseNotes([older, newer]).map((note) => note.id)).toEqual([
       "newer",
       "older",
+    ]);
+  });
+
+  it("breaks timestamp ties by id", () => {
+    const stamp = "2024-01-01T00:00:00.000Z";
+    const zeta = { ...valid, id: "zeta", title: "zeta", createdAt: stamp, updatedAt: stamp };
+    const alpha = { ...valid, id: "alpha", title: "alpha", createdAt: stamp, updatedAt: stamp };
+    expect(parseNotes([zeta, alpha]).map((note) => note.id)).toEqual([
+      "alpha",
+      "zeta",
     ]);
   });
 });

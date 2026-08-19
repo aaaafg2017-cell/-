@@ -83,6 +83,9 @@ export function downloadText(filename: string, contents: string, mime: string): 
     link.click();
     link.remove();
   } finally {
-    URL.revokeObjectURL(url);
+    // Revoking in the same turn can cancel the download in some browsers.
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 0);
   }
 }

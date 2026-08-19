@@ -269,7 +269,9 @@ describe("App", () => {
     expect(downloads[0]?.name).toMatch(/^notes-\d{4}-\d{2}-\d{2}\.json$/);
     expect(downloads[1]?.name).toMatch(/^notes-\d{4}-\d{2}-\d{2}\.md$/);
     expect(createObjectURL).toHaveBeenCalledTimes(2);
-    expect(revokeObjectURL).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(revokeObjectURL).toHaveBeenCalled();
+    });
   });
 
   it("exports only notes matching the current search", async () => {
@@ -852,8 +854,34 @@ describe("App", () => {
     );
 
     render(<App />);
-    expect(await screen.findByRole("alert")).toHaveTextContent(/invalid notes response/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /notes data from the server was not valid/i,
+    );
     expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+  });
+
+  it("shows a localized error when the API returns HTML instead of JSON", async () => {
+    Object.defineProperty(navigator, "language", {
+      configurable: true,
+      value: "ar-SA",
+    });
+    Object.defineProperty(navigator, "languages", {
+      configurable: true,
+      value: ["ar-SA"],
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("<!doctype html><title>oops</title>", {
+        status: 200,
+        headers: { "Content-Type": "text/html" },
+      })),
+    );
+
+    render(<App />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "بيانات الملاحظات من الخادم غير صالحة.",
+    );
+    expect(screen.getByRole("button", { name: "إعادة المحاولة" })).toBeInTheDocument();
   });
 
   it("matches Arabic notes that differ only by alef form", async () => {
@@ -1141,6 +1169,24 @@ describe("App", () => {
 
     await user.type(screen.getByLabelText(/search notes/i), "سوال");
     expect(screen.getByText("سؤال")).toBeInTheDocument();
+    expect(screen.queryByText(/no notes match/i)).not.toBeInTheDocument();
+  });
+
+  it("matches Arabic-Indic digits in search", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "٢ لتر",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByText("٢ لتر")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/search notes/i), "2");
+    expect(screen.getByText("٢ لتر")).toBeInTheDocument();
     expect(screen.queryByText(/no notes match/i)).not.toBeInTheDocument();
   });
 

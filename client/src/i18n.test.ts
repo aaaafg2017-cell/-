@@ -34,6 +34,12 @@ describe("normalizeForSearch", () => {
     expect(normalizeForSearch("hello  world")).toBe(normalizeForSearch("hello world"));
   });
 
+  it("matches Arabic-Indic digits and Persian yeh/kaf", () => {
+    expect(normalizeForSearch("٢ لتر")).toBe(normalizeForSearch("2 لتر"));
+    expect(normalizeForSearch("علی")).toBe(normalizeForSearch("علي"));
+    expect(normalizeForSearch("کتاب")).toBe(normalizeForSearch("كتاب"));
+  });
+
   it("is case-insensitive for Latin letters", () => {
     expect(normalizeForSearch("School")).toBe(normalizeForSearch("school"));
     expect(normalizeForSearch("I")).toBe("i");

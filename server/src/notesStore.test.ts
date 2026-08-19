@@ -74,6 +74,7 @@ describe("NotesStore persistence", () => {
       const store = new NotesStore(file);
       expect(store.persistStatus()).toBe("unavailable");
       expect(() => store.list()).toThrow(/could not be loaded/);
+      expect(() => store.create({ title: "nope" })).toThrow(/could not be loaded/);
       expect(() => store.create({ title: "nope" })).toThrow(/refusing to overwrite/);
       expect(readFileSync(file, "utf8")).toBe(corrupt);
     } finally {
@@ -187,6 +188,30 @@ describe("NotesStore persistence", () => {
     }
   });
 
+  it("trims padded ids so lookups match the stored note", () => {
+    const dir = mkdtempSync(join(tmpdir(), "notes-"));
+    const file = join(dir, "notes.json");
+    try {
+      writeFileSync(
+        file,
+        JSON.stringify([
+          {
+            id: "  padded  ",
+            title: "spaced",
+            body: "",
+            createdAt: "2024-01-01T00:00:00.000Z",
+            updatedAt: "2024-01-01T00:00:00.000Z",
+          },
+        ]),
+        "utf8",
+      );
+      const store = new NotesStore(file);
+      expect(store.get("padded")?.title).toBe("spaced");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("canonicalizes mixed timestamp formats and sorts by instant", () => {
     const dir = mkdtempSync(join(tmpdir(), "notes-"));
     const file = join(dir, "notes.json");
@@ -217,6 +242,38 @@ describe("NotesStore persistence", () => {
         createdAt: "2024-01-01T00:00:01.000Z",
         updatedAt: "2024-01-01T00:00:01.000Z",
       });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("orders notes with the same timestamp by id so client and server agree", () => {
+    const dir = mkdtempSync(join(tmpdir(), "notes-"));
+    const file = join(dir, "notes.json");
+    try {
+      const stamp = "2024-01-01T00:00:00.000Z";
+      writeFileSync(
+        file,
+        JSON.stringify([
+          {
+            id: "zeta",
+            title: "second",
+            body: "",
+            createdAt: stamp,
+            updatedAt: stamp,
+          },
+          {
+            id: "alpha",
+            title: "first",
+            body: "",
+            createdAt: stamp,
+            updatedAt: stamp,
+          },
+        ]),
+        "utf8",
+      );
+      const store = new NotesStore(file);
+      expect(store.list().map((note) => note.id)).toEqual(["alpha", "zeta"]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

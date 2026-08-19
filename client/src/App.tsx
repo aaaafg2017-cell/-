@@ -64,8 +64,9 @@ function errorMessage(err: unknown, t: (typeof copy)[Locale]): string {
       }
       return t.invalidRequest;
     }
+    return t.invalidResponse;
   }
-  return err instanceof Error ? err.message : t.networkError;
+  return t.networkError;
 }
 
 function formatTimestamp(iso: string, locale: ReturnType<typeof detectLocale>): string {
@@ -73,7 +74,7 @@ function formatTimestamp(iso: string, locale: ReturnType<typeof detectLocale>): 
   if (Number.isNaN(date.getTime())) {
     return "";
   }
-  return date.toLocaleString(locale === "ar" ? "ar" : undefined);
+  return date.toLocaleString(locale === "ar" ? "ar" : "en");
 }
 
 export function App() {
@@ -155,6 +156,9 @@ export function App() {
 
   useEffect(() => {
     void refresh(INITIAL_LOAD_RETRIES);
+    return () => {
+      refreshId.current += 1;
+    };
   }, []);
 
   const visibleNotes = useMemo(() => {
