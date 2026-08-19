@@ -28,6 +28,12 @@ describe("normalizeForSearch", () => {
     expect(normalizeForSearch("مَرْحَبًا")).toBe(normalizeForSearch("مرحبا"));
   });
 
+  it("matches hamza on waw/yeh and extra spaces", () => {
+    expect(normalizeForSearch("سؤال")).toBe(normalizeForSearch("سوال"));
+    expect(normalizeForSearch("مسائل")).toBe(normalizeForSearch("مسايل"));
+    expect(normalizeForSearch("hello  world")).toBe(normalizeForSearch("hello world"));
+  });
+
   it("is case-insensitive for Latin letters", () => {
     expect(normalizeForSearch("School")).toBe(normalizeForSearch("school"));
     expect(normalizeForSearch("I")).toBe("i");
