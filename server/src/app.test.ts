@@ -1,4 +1,7 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import request from "supertest";
 import { createApp } from "./app.js";
 import { BODY_MAX_LENGTH, NotesStore, TITLE_MAX_LENGTH } from "./notesStore.js";
@@ -16,6 +19,7 @@ describe("Notes API", () => {
     const res = await request(app).get("/api/health");
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("ok");
+    expect(res.body.persist).toBe("ok");
   });
 
   it("starts with no notes", async () => {
@@ -190,5 +194,34 @@ describe("Notes API", () => {
     const res = await request(app).get("/api/does-not-exist");
     expect(res.status).toBe(404);
     expect(res.body.error).toBe("not found");
+  });
+
+  it("returns 503 when the data file is corrupt", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "notes-"));
+    const file = join(dir, "notes.json");
+    try {
+      writeFileSync(file, "{not json", "utf8");
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const persisted = createApp(new NotesStore(file));
+      const list = await request(persisted).get("/api/notes");
+      expect(list.status).toBe(503);
+      expect(list.body.error).toMatch(/could not be loaded/);
+
+      const missing = await request(persisted).get("/api/notes/any-id");
+      expect(missing.status).toBe(503);
+
+      const health = await request(persisted).get("/api/health");
+      expect(health.status).toBe(200);
+      expect(health.body.persist).toBe("unavailable");
+      expect(health.body.status).toBe("unavailable");
+
+      const res = await request(persisted)
+        .post("/api/notes")
+        .send({ title: "x" });
+      expect(res.status).toBe(503);
+      expect(res.body.error).toMatch(/refusing to overwrite/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

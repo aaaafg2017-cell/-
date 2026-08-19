@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   createNote,
   deleteNote,
@@ -11,6 +11,12 @@ import { copy, detectLocale } from "./i18n.ts";
 export const TITLE_MAX_LENGTH = 200;
 export const BODY_MAX_LENGTH = 8000;
 
+function upsertNote(notes: Note[], note: Note): Note[] {
+  return [note, ...notes.filter((item) => item.id !== note.id)].sort((a, b) =>
+    b.updatedAt.localeCompare(a.updatedAt),
+  );
+}
+
 export function App() {
   const locale = detectLocale();
   const t = copy[locale];
@@ -21,8 +27,10 @@ export function App() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const refreshId = useRef(0);
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -31,14 +39,33 @@ export function App() {
   }, [locale, t.title]);
 
   async function refresh() {
+    const id = ++refreshId.current;
     try {
-      setNotes(await fetchNotes());
+      const next = await fetchNotes();
+      if (id !== refreshId.current) {
+        return;
+      }
+      setNotes(next);
       setError(null);
+      setLoadFailed(false);
     } catch (err) {
+      if (id !== refreshId.current) {
+        return;
+      }
       setError((err as Error).message);
+      setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (id === refreshId.current) {
+        setLoading(false);
+      }
     }
+  }
+
+  async function handleRetry() {
+    if (notes.length === 0) {
+      setLoading(true);
+    }
+    await refresh();
   }
 
   useEffect(() => {
@@ -84,11 +111,14 @@ export function App() {
     setSaving(true);
     try {
       if (editingId) {
-        await updateNote(editingId, { title, body });
+        const updated = await updateNote(editingId, { title, body });
+        setNotes((current) => upsertNote(current, updated));
         setEditingId(null);
       } else {
-        await createNote({ title, body });
+        const created = await createNote({ title, body });
+        setNotes((current) => upsertNote(current, created));
       }
+      setQuery("");
       setTitle("");
       setBody("");
       await refresh();
@@ -109,6 +139,7 @@ export function App() {
     setDeletingId(note.id);
     try {
       await deleteNote(note.id);
+      setNotes((current) => current.filter((item) => item.id !== note.id));
       if (editingId === note.id) {
         cancelEdit();
       }
@@ -120,6 +151,9 @@ export function App() {
     }
   }
 
+  const showList = !loading && notes.length > 0;
+  const showEmpty = !loading && notes.length === 0 && !loadFailed;
+
   return (
     <main className="app">
       <header className="app__header">
@@ -127,7 +161,12 @@ export function App() {
         <p className="app__subtitle">{t.subtitle}</p>
       </header>
 
-      <form className="note-form" onSubmit={handleSubmit}>
+      <form
+        className="note-form"
+        onSubmit={handleSubmit}
+        aria-busy={saving || loading}
+        aria-describedby={error ? "app-error" : undefined}
+      >
         <input
           className="note-form__input"
           placeholder={t.titlePlaceholder}
@@ -166,13 +205,29 @@ export function App() {
         </div>
       </form>
 
-      {error && <p className="app__error" role="alert">{error}</p>}
+      {error && (
+        <p className="app__error" role="alert" id="app-error">
+          {error}
+        </p>
+      )}
+
+      {loadFailed && !loading && (
+        <div className="app__retry">
+          <button
+            className="note-form__button"
+            type="button"
+            onClick={() => void handleRetry()}
+          >
+            {t.retry}
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <p className="app__empty">{t.loading}</p>
-      ) : notes.length === 0 ? (
+      ) : showEmpty ? (
         <p className="app__empty">{t.empty}</p>
-      ) : (
+      ) : showList ? (
         <>
           <label className="app__search">
             <span className="visually-hidden">{t.searchLabel}</span>
@@ -238,7 +293,7 @@ export function App() {
             </ul>
           )}
         </>
-      )}
+      ) : null}
     </main>
   );
 }
