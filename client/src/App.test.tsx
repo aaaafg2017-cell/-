@@ -84,6 +84,10 @@ describe("App", () => {
   it("shows the empty state initially", async () => {
     render(<App />);
     expect(await screen.findByText(/no notes yet/i)).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/notes",
+      expect.objectContaining({ cache: "no-store" }),
+    );
   });
 
   it("keeps a created note visible if the list refresh fails", async () => {
@@ -413,5 +417,27 @@ describe("App", () => {
       /could not reach the notes api/i,
     );
     expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+  });
+
+  it("asks before discarding unsaved edits when switching notes", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const now = new Date().toISOString();
+    notes.push(
+      { id: "1", title: "First", body: "one", createdAt: now, updatedAt: now },
+      { id: "2", title: "Second", body: "two", createdAt: now, updatedAt: now },
+    );
+    render(<App />);
+    expect(await screen.findByText("First")).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole("button", { name: /edit/i })[0]);
+    const titleInput = screen.getByLabelText(/note title/i);
+    await user.clear(titleInput);
+    await user.type(titleInput, "Changed");
+    await user.click(screen.getAllByRole("button", { name: /edit/i })[1]);
+
+    expect(confirm).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /save note/i })).toBeInTheDocument();
+    expect(titleInput).toHaveValue("Changed");
   });
 });
