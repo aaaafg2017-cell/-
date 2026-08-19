@@ -62,6 +62,10 @@ export const copy = {
     searchPlaceholder: "Search notes…",
     noResults: "No notes match your search.",
     edited: "edited",
+    exportNotes: "Export notes",
+    exportHint: (count: number) =>
+      count === 1 ? "Download 1 note as JSON" : `Download ${count} notes as JSON`,
+    exportError: "Could not export notes. Try a different browser.",
     retry: "Try again",
     networkError: "Could not reach the notes API. Is the server running?",
     persistError:
@@ -96,6 +100,19 @@ export const copy = {
     searchPlaceholder: "ابحث في الملاحظات…",
     noResults: "لا توجد ملاحظات مطابقة للبحث.",
     edited: "معدّلة",
+    exportNotes: "تصدير الملاحظات",
+    exportHint: (count: number) => {
+      if (count === 1) {
+        return "تنزيل ملاحظة واحدة بصيغة JSON";
+      }
+      if (count === 2) {
+        return "تنزيل ملاحظتين بصيغة JSON";
+      }
+      const remainder = count % 100;
+      const noun = remainder >= 3 && remainder <= 10 ? "ملاحظات" : "ملاحظة";
+      return `تنزيل ${count} ${noun} بصيغة JSON`;
+    },
+    exportError: "تعذر تصدير الملاحظات. جرّب متصفحاً آخر.",
     retry: "إعادة المحاولة",
     networkError: "تعذر الوصول إلى واجهة الملاحظات. هل الخادم يعمل؟",
     persistError:

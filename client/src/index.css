@@ -48,6 +48,34 @@ body {
   margin: 0.5rem 0 0;
 }
 
+.app__header-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.app__export {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.5rem 1.1rem;
+  transition: border-color 0.15s ease, color 0.15s ease, transform 0.05s ease;
+}
+
+.app__export:hover {
+  border-color: var(--accent);
+  color: var(--accent-hover);
+}
+
+.app__export:active {
+  transform: translateY(1px);
+}
+
 .note-form {
   display: flex;
   flex-direction: column;
