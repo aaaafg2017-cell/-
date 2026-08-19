@@ -122,6 +122,14 @@ body {
   cursor: not-allowed;
 }
 
+.note-form__button:focus-visible,
+.note-form__cancel:focus-visible,
+.note-form__input:focus-visible,
+.note-form__textarea:focus-visible {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 2px;
+}
+
 .app__error {
   color: var(--danger);
   text-align: center;
@@ -290,4 +298,10 @@ body {
 .note-card__delete:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.note-card__edit:focus-visible,
+.note-card__delete:focus-visible {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 2px;
 }

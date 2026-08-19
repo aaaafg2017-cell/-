@@ -1093,6 +1093,75 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /edit walk dog/i })).toBeInTheDocument();
   });
 
+  it("moves keyboard focus to the title field when editing a note", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "Draft",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByText("Draft")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /edit/i }));
+    await waitFor(() => {
+      expect(screen.getByLabelText(/note title/i)).toHaveFocus();
+    });
+    expect(screen.getByLabelText(/note title/i)).toHaveValue("Draft");
+  });
+
+  it("does not mark a note as edited when timestamps are the same instant", async () => {
+    notes.push({
+      id: "1",
+      title: "Legacy",
+      body: "",
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00.000Z",
+    });
+    render(<App />);
+    expect(await screen.findByText("Legacy")).toBeInTheDocument();
+    expect(screen.queryByText(/edited/i)).not.toBeInTheDocument();
+  });
+
+  it("matches Arabic notes that differ by hamza on waw", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "سؤال",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByText("سؤال")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/search notes/i), "سوال");
+    expect(screen.getByText("سؤال")).toBeInTheDocument();
+    expect(screen.queryByText(/no notes match/i)).not.toBeInTheDocument();
+  });
+
+  it("matches notes when the search query has extra spaces", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "Buy milk",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByText("Buy milk")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/search notes/i), "Buy  milk");
+    expect(screen.getByText("Buy milk")).toBeInTheDocument();
+    expect(screen.queryByText(/no notes match/i)).not.toBeInTheDocument();
+  });
+
   it("localizes validation errors from the API", async () => {
     const user = userEvent.setup();
     Object.defineProperty(navigator, "language", {

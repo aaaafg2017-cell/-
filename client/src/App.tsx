@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   ApiError,
+  compareNotes,
   createNote,
   deleteNote,
   fetchNotes,
@@ -20,9 +21,13 @@ const INITIAL_LOAD_RETRIES = import.meta.env.MODE === "test" ? 3 : 8;
 const INITIAL_RETRY_DELAY_MS = import.meta.env.MODE === "test" ? 5 : 200;
 
 function upsertNote(notes: Note[], note: Note): Note[] {
-  return [note, ...notes.filter((item) => item.id !== note.id)].sort((a, b) =>
-    b.updatedAt.localeCompare(a.updatedAt),
-  );
+  return [note, ...notes.filter((item) => item.id !== note.id)].sort(compareNotes);
+}
+
+function isEdited(note: Note): boolean {
+  const created = Date.parse(note.createdAt);
+  const updated = Date.parse(note.updatedAt);
+  return Number.isFinite(created) && Number.isFinite(updated) && updated !== created;
 }
 
 function isNetworkError(err: unknown): boolean {
@@ -85,6 +90,7 @@ export function App() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const refreshId = useRef(0);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const editingIdRef = useRef<string | null>(null);
   const isDirtyRef = useRef(false);
   const inFlightRef = useRef(false);
@@ -205,6 +211,9 @@ export function App() {
     if (!loadFailedRef.current) {
       setError(null);
     }
+    queueMicrotask(() => {
+      titleInputRef.current?.focus();
+    });
   }
 
   function cancelEdit() {
@@ -373,6 +382,7 @@ export function App() {
         aria-describedby={error ? "app-error" : undefined}
       >
         <input
+          ref={titleInputRef}
           className="note-form__input"
           placeholder={t.titlePlaceholder}
           aria-label={t.titleLabel}
@@ -484,7 +494,7 @@ export function App() {
           ) : (
             <ul className="note-list">
               {visibleNotes.map((note) => {
-                const edited = note.updatedAt !== note.createdAt;
+                const edited = isEdited(note);
                 return (
                   <li
                     key={note.id}

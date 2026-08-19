@@ -187,6 +187,83 @@ describe("NotesStore persistence", () => {
     }
   });
 
+  it("canonicalizes mixed timestamp formats and sorts by instant", () => {
+    const dir = mkdtempSync(join(tmpdir(), "notes-"));
+    const file = join(dir, "notes.json");
+    try {
+      writeFileSync(
+        file,
+        JSON.stringify([
+          {
+            id: "newer",
+            title: "with Z",
+            body: "",
+            createdAt: "2024-01-01T00:00:01Z",
+            updatedAt: "2024-01-01T00:00:01Z",
+          },
+          {
+            id: "older",
+            title: "with ms",
+            body: "",
+            createdAt: "2024-01-01T00:00:00.500Z",
+            updatedAt: "2024-01-01T00:00:00.500Z",
+          },
+        ]),
+        "utf8",
+      );
+      const store = new NotesStore(file);
+      expect(store.list().map((note) => note.id)).toEqual(["newer", "older"]);
+      expect(store.list()[0]).toMatchObject({
+        createdAt: "2024-01-01T00:00:01.000Z",
+        updatedAt: "2024-01-01T00:00:01.000Z",
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not treat equivalent timestamp strings as an edit", () => {
+    const dir = mkdtempSync(join(tmpdir(), "notes-"));
+    const file = join(dir, "notes.json");
+    try {
+      writeFileSync(
+        file,
+        JSON.stringify([
+          {
+            id: "same-instant",
+            title: "legacy",
+            body: "",
+            createdAt: "2024-01-01T00:00:00Z",
+            updatedAt: "2024-01-01T00:00:00.000Z",
+          },
+        ]),
+        "utf8",
+      );
+      const [note] = new NotesStore(file).list();
+      expect(note.createdAt).toBe(note.updatedAt);
+      expect(note.createdAt).toBe("2024-01-01T00:00:00.000Z");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("wraps disk write failures so callers can treat them as persist errors", () => {
+    const dir = mkdtempSync(join(tmpdir(), "notes-"));
+    const file = join(dir, "notes.json");
+    try {
+      const store = new NotesStore(file);
+      rmSync(dir, { recursive: true, force: true });
+      writeFileSync(dir, "not a directory", "utf8");
+      expect(() => store.create({ title: "nope" })).toThrow(/could not write notes data file/);
+    } finally {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+      } catch {
+        rmSync(dir, { force: true });
+      }
+    }
+  });
+
   it("does not bump updatedAt when PUT applies the same title and body", () => {
     const store = new NotesStore();
     const created = store.create({ title: "same", body: "body" });

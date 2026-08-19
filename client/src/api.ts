@@ -62,21 +62,38 @@ export function parseNote(value: unknown): Note | undefined {
   ) {
     return undefined;
   }
-  if (Number.isNaN(Date.parse(record.createdAt))) {
+  const createdAt = canonicalIso(record.createdAt);
+  if (!createdAt) {
     return undefined;
   }
-  const updatedAt =
-    typeof record.updatedAt === "string" ? record.updatedAt : record.createdAt;
-  if (Number.isNaN(Date.parse(updatedAt))) {
+  const updatedAt = canonicalIso(
+    typeof record.updatedAt === "string" ? record.updatedAt : record.createdAt,
+  );
+  if (!updatedAt) {
     return undefined;
   }
   return {
     id: record.id,
     title,
     body,
-    createdAt: record.createdAt,
+    createdAt,
     updatedAt,
   };
+}
+
+function canonicalIso(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const ms = Date.parse(value);
+  if (Number.isNaN(ms)) {
+    return undefined;
+  }
+  return new Date(ms).toISOString();
+}
+
+export function compareNotes(a: Note, b: Note): number {
+  return Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
 }
 
 export function parseNotes(value: unknown): Note[] {
@@ -93,9 +110,7 @@ export function parseNotes(value: unknown): Note[] {
   if (value.length > 0 && byId.size === 0) {
     throw new ApiError("invalid notes response", 500);
   }
-  return [...byId.values()].sort((a, b) =>
-    b.updatedAt.localeCompare(a.updatedAt),
-  );
+  return [...byId.values()].sort(compareNotes);
 }
 
 function requireNote(value: unknown): Note {
