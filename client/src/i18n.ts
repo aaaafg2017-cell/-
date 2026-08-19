@@ -29,6 +29,7 @@ export const copy = {
     searchPlaceholder: "Search notes…",
     noResults: "No notes match your search.",
     edited: "edited",
+    retry: "Try again",
   },
   ar: {
     title: "الملاحظات",
@@ -50,5 +51,6 @@ export const copy = {
     searchPlaceholder: "ابحث في الملاحظات…",
     noResults: "لا توجد ملاحظات مطابقة للبحث.",
     edited: "معدّلة",
+    retry: "إعادة المحاولة",
   },
 } as const;

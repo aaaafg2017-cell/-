@@ -1,6 +1,6 @@
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
-import { NotesStore, ValidationError } from "./notesStore.js";
+import { NotesStore, PersistError, ValidationError } from "./notesStore.js";
 
 export function createApp(store: NotesStore = new NotesStore()): Express {
   const app = express();
@@ -8,7 +8,12 @@ export function createApp(store: NotesStore = new NotesStore()): Express {
   app.use(express.json({ limit: "32kb" }));
 
   app.get("/api/health", (_req: Request, res: Response) => {
-    res.json({ status: "ok", uptime: process.uptime() });
+    const persist = store.persistStatus();
+    res.json({
+      status: persist === "ok" ? "ok" : persist,
+      persist,
+      uptime: process.uptime(),
+    });
   });
 
   app.get("/api/notes", (_req: Request, res: Response) => {
@@ -67,6 +72,10 @@ export function createApp(store: NotesStore = new NotesStore()): Express {
     }
     if (err instanceof ValidationError) {
       res.status(400).json({ error: err.message });
+      return;
+    }
+    if (err instanceof PersistError) {
+      res.status(503).json({ error: err.message });
       return;
     }
     const status = httpStatus(err);

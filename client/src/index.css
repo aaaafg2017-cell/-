@@ -134,6 +134,12 @@ body {
   margin-top: 2rem;
 }
 
+.app__retry {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
+
 .app__search {
   display: block;
   margin: 1.25rem 0 0;
