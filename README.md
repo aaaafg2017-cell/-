@@ -23,6 +23,13 @@ npm run dev        # start the API (:3001) and the client (:5173) together
 
 Then open http://localhost:5173 and create a note.
 
+For a production build, the API also serves the compiled client:
+
+```bash
+npm run build
+npm start          # http://localhost:3001 (API + UI)
+```
+
 ## Common commands
 
 | Command | Description |
@@ -34,6 +41,7 @@ Then open http://localhost:5173 and create a note.
 | `npm run typecheck` | Type-check every workspace |
 | `npm run lint` | Lint the whole repo with ESLint |
 | `npm run build` | Build the server and the client for production |
+| `npm start` | Serve the production API and built UI on port `3001` |
 
 ## API
 

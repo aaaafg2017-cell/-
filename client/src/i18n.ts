@@ -5,7 +5,7 @@ export function detectLocale(): Locale {
     return "en";
   }
   const language = (navigator.language || "").toLowerCase();
-  return language.startsWith("ar") ? "ar" : "en";
+  return language === "ar" || language.startsWith("ar-") ? "ar" : "en";
 }
 
 export const copy = {

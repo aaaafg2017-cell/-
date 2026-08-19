@@ -8,6 +8,10 @@ const notes: Note[] = [];
 
 beforeEach(() => {
   notes.length = 0;
+  Object.defineProperty(navigator, "language", {
+    configurable: true,
+    get: () => "en-US",
+  });
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -275,5 +279,25 @@ describe("App", () => {
 
     await user.click(screen.getByRole("button", { name: /try again/i }));
     expect(await screen.findByText(/no notes yet/i)).toBeInTheDocument();
+  });
+
+  it("renders Arabic copy when the browser language is Arabic", async () => {
+    Object.defineProperty(navigator, "language", {
+      configurable: true,
+      value: "ar-SA",
+    });
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: "الملاحظات" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "إضافة ملاحظة" })).toBeInTheDocument();
+  });
+
+  it("marks the title field invalid when submitting without a title", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/no notes yet/i);
+
+    await user.click(screen.getByRole("button", { name: /add note/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/title/i);
+    expect(screen.getByLabelText(/note title/i)).toHaveAttribute("aria-invalid", "true");
   });
 });
