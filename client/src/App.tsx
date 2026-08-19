@@ -20,6 +20,10 @@ export const BODY_MAX_LENGTH = 8000;
 const INITIAL_LOAD_RETRIES = import.meta.env.MODE === "test" ? 3 : 8;
 const INITIAL_RETRY_DELAY_MS = import.meta.env.MODE === "test" ? 5 : 200;
 
+function compactTitle(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 function upsertNote(notes: Note[], note: Note): Note[] {
   return [note, ...notes.filter((item) => item.id !== note.id)].sort(compareNotes);
 }
@@ -64,6 +68,7 @@ function errorMessage(err: unknown, t: (typeof copy)[Locale]): string {
       }
       return t.invalidRequest;
     }
+    return t.serverError;
   }
   return err instanceof Error ? err.message : t.networkError;
 }
@@ -179,9 +184,9 @@ export function App() {
       if (!current) {
         return true;
       }
-      return title.trim() !== current.title || body.trim() !== current.body;
+      return compactTitle(title) !== current.title || body.trim() !== current.body;
     }
-    return title.trim() !== "" || body.trim() !== "";
+    return compactTitle(title) !== "" || body.trim() !== "";
   }, [body, editingId, notes, title]);
   editingIdRef.current = editingId;
   isDirtyRef.current = isDirty;
@@ -272,7 +277,7 @@ export function App() {
     if (inFlightRef.current || loading || saving || deletingId) {
       return;
     }
-    if (!title.trim()) {
+    if (!compactTitle(title)) {
       setError(t.titleRequired);
       return;
     }
@@ -282,7 +287,7 @@ export function App() {
     setError(null);
     inFlightRef.current = true;
     setSaving(true);
-    const payload = { title: title.trim(), body: body.trim() };
+    const payload = { title: compactTitle(title), body: body.trim() };
     try {
       if (editingId) {
         const updated = await updateNote(editingId, payload);
@@ -323,8 +328,15 @@ export function App() {
       setError(t.exportEmpty);
       return;
     }
-    const file = renderNotesExport(visibleNotes, format);
-    downloadText(file.filename, file.body, file.mime);
+    try {
+      const file = renderNotesExport(visibleNotes, format);
+      downloadText(file.filename, file.body, file.mime);
+      if (!loadFailedRef.current) {
+        setError(null);
+      }
+    } catch {
+      setError(t.exportError);
+    }
   }
 
   async function handleDelete(note: Note) {
@@ -386,7 +398,7 @@ export function App() {
           className="note-form__input"
           placeholder={t.titlePlaceholder}
           aria-label={t.titleLabel}
-          aria-invalid={!title.trim() && error === t.titleRequired}
+          aria-invalid={!compactTitle(title) && error === t.titleRequired}
           autoComplete="off"
           dir="auto"
           value={title}
@@ -452,9 +464,9 @@ export function App() {
       )}
 
       {loading ? (
-        <p className="app__empty">{t.loading}</p>
+        <p className="app__empty" aria-live="polite">{t.loading}</p>
       ) : showEmpty ? (
-        <p className="app__empty">{t.empty}</p>
+        <p className="app__empty" aria-live="polite">{t.empty}</p>
       ) : showList ? (
         <>
           <div className="app__toolbar">
@@ -466,6 +478,7 @@ export function App() {
                 placeholder={t.searchPlaceholder}
                 aria-label={t.searchLabel}
                 dir="auto"
+                autoComplete="off"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -490,7 +503,7 @@ export function App() {
             </div>
           </div>
           {visibleNotes.length === 0 ? (
-            <p className="app__empty">{t.noResults}</p>
+            <p className="app__empty" aria-live="polite">{t.noResults}</p>
           ) : (
             <ul className="note-list">
               {visibleNotes.map((note) => {

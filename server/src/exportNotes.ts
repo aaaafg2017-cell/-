@@ -34,6 +34,11 @@ export function exportFilename(format: ExportFormat, exportedAt: string): string
   return `notes-${day}.${format}`;
 }
 
+function markdownHeadingTitle(title: string): string {
+  const compact = title.replace(/\s+/g, " ").trim() || "Untitled";
+  return compact.replace(/^#+/, (hashes) => `\\${hashes}`);
+}
+
 export function notesToJson(notes: NoteLike[], exportedAt: string): string {
   const payload: NotesExport = {
     exportedAt,
@@ -59,7 +64,7 @@ export function notesToMarkdown(notes: NoteLike[], exportedAt: string): string {
     if (index > 0) {
       lines.push("---", "");
     }
-    lines.push(`## ${note.title.replace(/\s+/g, " ").trim()}`);
+    lines.push(`## ${markdownHeadingTitle(note.title)}`);
     lines.push("");
     if (note.body.trim()) {
       lines.push(note.body, "");

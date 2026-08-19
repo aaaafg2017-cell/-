@@ -26,19 +26,23 @@ export function detectLocale(language = preferredLanguage()): Locale {
 }
 
 /**
- * Normalize text for client-side search so Arabic alef/tashkeel variants and
- * Latin case differences still match the stored note.
+ * Normalize text for client-side search so Arabic alef/tashkeel variants,
+ * hamza/yeh/kaf differences, Arabic-Indic digits, zero-width characters,
+ * extra spaces, and Latin case still match the stored note.
  */
 export function normalizeForSearch(text: string): string {
   return text
     .normalize("NFKD")
     .toLowerCase()
     .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, "")
-    .replace(/\u0640/g, "")
+    .replace(/[\u200B-\u200D\uFEFF\u0640]/g, "")
     .replace(/[أإآٱ]/g, "ا")
     .replace(/ؤ/g, "و")
-    .replace(/[ئى]/g, "ي")
+    .replace(/[ئىی]/g, "ي")
+    .replace(/ک/g, "ك")
     .replace(/ة/g, "ه")
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06F0))
     .replace(/\s+/g, " ");
 }
 
@@ -67,6 +71,7 @@ export const copy = {
     exportJson: "Export JSON",
     exportMarkdown: "Export Markdown",
     exportEmpty: "Nothing to export.",
+    exportError: "Could not export notes.",
     edited: "edited",
     retry: "Try again",
     networkError: "Could not reach the notes API. Is the server running?",
@@ -79,6 +84,7 @@ export const copy = {
     titleTooLong: "Titles can be at most 200 characters.",
     bodyTooLong: "Note bodies can be at most 8,000 characters.",
     invalidRequest: "That note could not be saved.",
+    serverError: "The notes API returned an unexpected error.",
     discardChanges: "You have unsaved changes. Discard them?",
   },
   ar: {
@@ -105,6 +111,7 @@ export const copy = {
     exportJson: "إخراج JSON",
     exportMarkdown: "إخراج Markdown",
     exportEmpty: "لا يوجد شيء لإخراجه.",
+    exportError: "تعذر إخراج الملاحظات.",
     edited: "معدّلة",
     retry: "إعادة المحاولة",
     networkError: "تعذر الوصول إلى واجهة الملاحظات. هل الخادم يعمل؟",
@@ -117,6 +124,7 @@ export const copy = {
     titleTooLong: "يجب ألا يتجاوز العنوان 200 حرف.",
     bodyTooLong: "يجب ألا يتجاوز نص الملاحظة 8000 حرف.",
     invalidRequest: "تعذر حفظ هذه الملاحظة.",
+    serverError: "أرجعت واجهة الملاحظات خطأ غير متوقع.",
     discardChanges: "لديك تغييرات غير محفوظة. هل تريد تجاهلها؟",
   },
 } as const;

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { ApiError, parseNote, parseNotes } from "./api.ts";
+import { describe, expect, it, vi } from "vitest";
+import { ApiError, fetchNotes, parseNote, parseNotes } from "./api.ts";
 
 const valid = {
   id: "1",
@@ -44,11 +44,26 @@ describe("parseNote", () => {
   it("rejects missing fields, empty ids, empty titles, and over-length text", () => {
     expect(parseNote(null)).toBeUndefined();
     expect(parseNote({ ...valid, id: "" })).toBeUndefined();
+    expect(parseNote({ ...valid, id: "   " })).toBeUndefined();
     expect(parseNote({ ...valid, title: 1 })).toBeUndefined();
     expect(parseNote({ ...valid, title: "   " })).toBeUndefined();
     expect(parseNote({ ...valid, title: "x".repeat(201) })).toBeUndefined();
     expect(parseNote({ ...valid, body: "y".repeat(8001) })).toBeUndefined();
     expect(parseNote({ ...valid, createdAt: "not-a-date" })).toBeUndefined();
+  });
+
+  it("trims ids and collapses title whitespace", () => {
+    expect(
+      parseNote({
+        ...valid,
+        id: "  1  ",
+        title: "  Buy   milk  ",
+      }),
+    ).toEqual({
+      ...valid,
+      id: "1",
+      title: "Buy milk",
+    });
   });
 });
 
@@ -89,5 +104,26 @@ describe("parseNotes", () => {
       "newer",
       "older",
     ]);
+  });
+});
+
+describe("fetchNotes", () => {
+  it("wraps invalid JSON success bodies as ApiError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("{", {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    );
+    await expect(fetchNotes()).rejects.toMatchObject({
+      name: "ApiError",
+      status: 500,
+      message: "invalid notes response",
+    });
+    vi.unstubAllGlobals();
   });
 });

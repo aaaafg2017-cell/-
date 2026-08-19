@@ -19,7 +19,9 @@ const notes: Note[] = [
 ];
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("client notes export", () => {
@@ -38,6 +40,22 @@ describe("client notes export", () => {
     expect(notesToMarkdown(notes, exportedAt)).toContain("لتران");
   });
 
+  it("escapes markdown ATX prefixes in titles", () => {
+    const md = notesToMarkdown(
+      [
+        {
+          id: "h1",
+          title: "# not a heading",
+          body: "",
+          createdAt: "2026-08-01T10:00:00.000Z",
+          updatedAt: "2026-08-01T10:00:00.000Z",
+        },
+      ],
+      "2026-08-19T08:00:00.000Z",
+    );
+    expect(md).toContain("## \\# not a heading");
+  });
+
   it("renders json and markdown payloads", () => {
     const json = renderNotesExport(notes, "json", "2026-08-19T08:00:00.000Z");
     expect(json.filename).toBe("notes-2026-08-19.json");
@@ -48,6 +66,7 @@ describe("client notes export", () => {
   });
 
   it("triggers a file download", () => {
+    vi.useFakeTimers();
     const createObjectURL = vi.fn(() => "blob:notes");
     const revokeObjectURL = vi.fn();
     vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
@@ -63,6 +82,9 @@ describe("client notes export", () => {
 
     expect(createObjectURL).toHaveBeenCalled();
     expect(click).toHaveBeenCalled();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    vi.runAllTimers();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:notes");
+    vi.useRealTimers();
   });
 });
