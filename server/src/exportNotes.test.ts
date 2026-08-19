@@ -78,6 +78,23 @@ describe("notes export rendering", () => {
     expect(md).toContain("_No notes._");
   });
 
+  it("escapes markdown ATX prefixes in titles", () => {
+    const md = notesToMarkdown(
+      [
+        {
+          id: "h1",
+          title: "# not a heading",
+          body: "",
+          createdAt: "2026-08-01T10:00:00.000Z",
+          updatedAt: "2026-08-01T10:00:00.000Z",
+        },
+      ],
+      "2026-08-19T08:00:00.000Z",
+    );
+    expect(md).toContain("## \\# not a heading");
+    expect(md).not.toContain("## # not a heading");
+  });
+
   it("picks the matching content type", () => {
     const json = renderNotesExport(notes, "json", "2026-08-19T08:00:00.000Z");
     expect(json.contentType).toMatch(/application\/json/);

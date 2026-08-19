@@ -67,6 +67,7 @@ export class NotesStore {
       createdAt: now,
       updatedAt: now,
     };
+    this.assertWritable();
     this.notes.set(note.id, note);
     this.commitOrRollback(() => {
       this.notes.delete(note.id);
@@ -132,7 +133,12 @@ export class NotesStore {
     }
     try {
       const raw = readFileSync(this.persistPath, "utf8");
-      const parsed: unknown = JSON.parse(raw);
+      // trim() also strips a UTF-8 BOM, which JSON.parse rejects.
+      const text = raw.trim();
+      if (text.length === 0) {
+        return;
+      }
+      const parsed: unknown = JSON.parse(text);
       if (!Array.isArray(parsed)) {
         this.loadFailed = true;
         console.error(`Notes data file is not an array: ${this.persistPath}`);
@@ -174,6 +180,20 @@ export class NotesStore {
     }
   }
 
+  private persistWriteError(): PersistError {
+    return new PersistError(
+      this.notes.size === 0
+        ? "notes data file could not be loaded; refusing to overwrite it"
+        : "notes data file has invalid records; refusing to overwrite it",
+    );
+  }
+
+  private assertWritable(): void {
+    if (this.loadFailed) {
+      throw this.persistWriteError();
+    }
+  }
+
   private commitOrRollback(rollback: () => void): void {
     try {
       this.saveToDisk();
@@ -188,11 +208,7 @@ export class NotesStore {
       return;
     }
     if (this.loadFailed) {
-      throw new PersistError(
-        this.notes.size === 0
-          ? "notes data file could not be loaded; refusing to overwrite it"
-          : "notes data file has invalid records; refusing to overwrite it",
-      );
+      throw this.persistWriteError();
     }
     try {
       mkdirSync(dirname(this.persistPath), { recursive: true });
@@ -226,7 +242,7 @@ export class ValidationError extends Error {}
 export class PersistError extends Error {}
 
 function normalizeTitle(title: unknown): string {
-  const trimmed = typeof title === "string" ? title.trim() : "";
+  const trimmed = typeof title === "string" ? title.replace(/\s+/g, " ").trim() : "";
   if (!trimmed) {
     throw new ValidationError("title is required");
   }
@@ -254,11 +270,14 @@ function asNote(value: unknown): Note | undefined {
   const record = value as Record<string, unknown>;
   if (
     typeof record.id !== "string" ||
-    record.id.trim().length === 0 ||
     typeof record.title !== "string" ||
     typeof record.body !== "string" ||
     typeof record.createdAt !== "string"
   ) {
+    return undefined;
+  }
+  const id = record.id.trim();
+  if (!id) {
     return undefined;
   }
   const createdAt = canonicalIso(record.createdAt);
@@ -273,7 +292,7 @@ function asNote(value: unknown): Note | undefined {
   }
   try {
     return {
-      id: record.id,
+      id,
       title: normalizeTitle(record.title),
       body: normalizeBody(record.body),
       createdAt,
@@ -296,7 +315,11 @@ function canonicalIso(value: unknown): string | undefined {
 }
 
 function compareNotes(a: Note, b: Note): number {
-  return Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+  const delta = Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+  if (delta !== 0 && Number.isFinite(delta)) {
+    return delta;
+  }
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {

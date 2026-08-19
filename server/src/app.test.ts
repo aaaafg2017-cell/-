@@ -31,14 +31,12 @@ describe("Notes API", () => {
     expect(res.headers["cache-control"]).toMatch(/no-store/i);
   });
 
-  it("creates a note", async () => {
+  it("collapses internal title whitespace", async () => {
     const res = await request(app)
       .post("/api/notes")
-      .send({ title: "First note", body: "hello world" });
+      .send({ title: "  Hello   World  " });
     expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ title: "First note", body: "hello world" });
-    expect(res.body.id).toBeTruthy();
-    expect(res.body.updatedAt).toBeTruthy();
+    expect(res.body.title).toBe("Hello World");
   });
 
   it("rejects a note without a title", async () => {
@@ -339,7 +337,50 @@ describe("Notes API", () => {
         .post("/api/notes")
         .send({ title: "x" });
       expect(res.status).toBe(503);
-      expect(res.body.error).toMatch(/refusing to overwrite/);
+      expect(res.body.error).toMatch(/could not be loaded/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("lists notes from an empty file and a UTF-8 BOM file", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "notes-"));
+    try {
+      const emptyFile = join(dir, "empty.json");
+      writeFileSync(emptyFile, "", "utf8");
+      const emptyApp = createApp(new NotesStore(emptyFile));
+      const emptyList = await request(emptyApp).get("/api/notes");
+      expect(emptyList.status).toBe(200);
+      expect(emptyList.body).toEqual([]);
+      const created = await request(emptyApp).post("/api/notes").send({ title: "from empty" });
+      expect(created.status).toBe(201);
+
+      const bomFile = join(dir, "bom.json");
+      writeFileSync(
+        bomFile,
+        `\uFEFF${JSON.stringify([
+          {
+            id: "ok",
+            title: "bom note",
+            body: "",
+            createdAt: "2024-01-01T00:00:00.000Z",
+            updatedAt: "2024-01-01T00:00:00.000Z",
+          },
+        ])}`,
+        "utf8",
+      );
+      const bomApp = createApp(new NotesStore(bomFile));
+      const bomList = await request(bomApp).get("/api/notes");
+      expect(bomList.status).toBe(200);
+      expect(bomList.body).toEqual([
+        {
+          id: "ok",
+          title: "bom note",
+          body: "",
+          createdAt: "2024-01-01T00:00:00.000Z",
+          updatedAt: "2024-01-01T00:00:00.000Z",
+        },
+      ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

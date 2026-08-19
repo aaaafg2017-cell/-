@@ -74,7 +74,7 @@ describe("NotesStore persistence", () => {
       const store = new NotesStore(file);
       expect(store.persistStatus()).toBe("unavailable");
       expect(() => store.list()).toThrow(/could not be loaded/);
-      expect(() => store.create({ title: "nope" })).toThrow(/refusing to overwrite/);
+      expect(() => store.create({ title: "nope" })).toThrow(/could not be loaded/);
       expect(readFileSync(file, "utf8")).toBe(corrupt);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -271,5 +271,115 @@ describe("NotesStore persistence", () => {
     expect(updated?.updatedAt).toBe(created.updatedAt);
     expect(updated?.title).toBe("same");
     expect(updated?.body).toBe("body");
+  });
+
+  it("treats empty, whitespace, and BOM-only files as missing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "notes-"));
+    try {
+      const empty = join(dir, "empty.json");
+      writeFileSync(empty, "", "utf8");
+      const emptyStore = new NotesStore(empty);
+      expect(emptyStore.persistStatus()).toBe("ok");
+      expect(emptyStore.list()).toEqual([]);
+      const created = emptyStore.create({ title: "after empty" });
+      expect(JSON.parse(readFileSync(empty, "utf8"))).toEqual([created]);
+
+      const whitespace = join(dir, "ws.json");
+      writeFileSync(whitespace, "  \n\t  ", "utf8");
+      const wsStore = new NotesStore(whitespace);
+      expect(wsStore.persistStatus()).toBe("ok");
+      expect(wsStore.list()).toEqual([]);
+
+      const bomOnly = join(dir, "bom-only.json");
+      writeFileSync(bomOnly, "\uFEFF", "utf8");
+      const bomOnlyStore = new NotesStore(bomOnly);
+      expect(bomOnlyStore.persistStatus()).toBe("ok");
+      expect(bomOnlyStore.list()).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("loads notes from a UTF-8 BOM JSON file", () => {
+    const dir = mkdtempSync(join(tmpdir(), "notes-"));
+    const file = join(dir, "notes.json");
+    try {
+      writeFileSync(
+        file,
+        `\uFEFF${JSON.stringify([
+          {
+            id: "ok",
+            title: "bom note",
+            body: "",
+            createdAt: "2024-01-01T00:00:00.000Z",
+            updatedAt: "2024-01-01T00:00:00.000Z",
+          },
+        ])}`,
+        "utf8",
+      );
+      const store = new NotesStore(file);
+      expect(store.persistStatus()).toBe("ok");
+      expect(store.list()).toEqual([
+        {
+          id: "ok",
+          title: "bom note",
+          body: "",
+          createdAt: "2024-01-01T00:00:00.000Z",
+          updatedAt: "2024-01-01T00:00:00.000Z",
+        },
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("trims ids, collapses title whitespace, and treats padded duplicate ids as invalid", () => {
+    const dir = mkdtempSync(join(tmpdir(), "notes-"));
+    const file = join(dir, "notes.json");
+    try {
+      writeFileSync(
+        file,
+        JSON.stringify([
+          {
+            id: "  abc  ",
+            title: "  Hello   World  ",
+            body: "",
+            createdAt: "2024-01-01T00:00:00.000Z",
+            updatedAt: "2024-01-01T00:00:00.000Z",
+          },
+          {
+            id: "abc",
+            title: "duplicate after trim",
+            body: "",
+            createdAt: "2024-02-01T00:00:00.000Z",
+            updatedAt: "2024-02-01T00:00:00.000Z",
+          },
+        ]),
+        "utf8",
+      );
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const store = new NotesStore(file);
+      expect(store.persistStatus()).toBe("degraded");
+      expect(store.list()).toEqual([
+        {
+          id: "abc",
+          title: "Hello World",
+          body: "",
+          createdAt: "2024-01-01T00:00:00.000Z",
+          updatedAt: "2024-01-01T00:00:00.000Z",
+        },
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("collapses internal title whitespace on create and no-op update", () => {
+    const store = new NotesStore();
+    const created = store.create({ title: "  Hello   World  ", body: "x" });
+    expect(created.title).toBe("Hello World");
+    const updated = store.update(created.id, { title: "Hello    World" });
+    expect(updated?.updatedAt).toBe(created.updatedAt);
+    expect(updated?.title).toBe("Hello World");
   });
 });

@@ -13,6 +13,11 @@ export function exportFilename(format: ExportFormat, exportedAt: string): string
   return `notes-${day}.${format}`;
 }
 
+function markdownHeadingTitle(title: string): string {
+  const compact = title.replace(/\s+/g, " ").trim() || "Untitled";
+  return compact.replace(/^#+/, (hashes) => `\\${hashes}`);
+}
+
 export function notesToJson(notes: Note[], exportedAt: string): string {
   const payload: NotesExport = {
     exportedAt,
@@ -38,7 +43,7 @@ export function notesToMarkdown(notes: Note[], exportedAt: string): string {
     if (index > 0) {
       lines.push("---", "");
     }
-    lines.push(`## ${note.title.replace(/\s+/g, " ").trim()}`);
+    lines.push(`## ${markdownHeadingTitle(note.title)}`);
     lines.push("");
     if (note.body.trim()) {
       lines.push(note.body, "");
@@ -82,7 +87,10 @@ export function downloadText(filename: string, contents: string, mime: string): 
     document.body.appendChild(link);
     link.click();
     link.remove();
-  } finally {
+  } catch (err) {
     URL.revokeObjectURL(url);
+    throw err;
   }
+  // Firefox can abort the download if the blob URL is revoked in the same turn.
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }

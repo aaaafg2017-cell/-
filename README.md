@@ -62,12 +62,16 @@ saved to `server/data/notes.json` (override with `NOTES_DATA_FILE`) so they surv
 API restarts. Writes are atomic (`tmp` + rename). Disk write failures return
 `503` and roll back in-memory state. The API file watcher ignores
 `server/data` so saving a note does not restart the server. A corrupt or unreadable file is never overwritten, and listing notes then
-returns `503` instead of an empty list. Loaded timestamps are normalized to
+returns `503` instead of an empty list. An empty file or a UTF-8 BOM on
+otherwise valid JSON is treated like a missing file so the app can start
+saving. Titles collapse internal whitespace, and note ids are trimmed on
+load. Loaded timestamps are normalized to
 UTC ISO-8601 so mixed formats still sort and show “edited” correctly. Invalid records (empty titles, over-length
 fields, bad dates, or duplicate ids) are skipped: health reports `degraded`,
 valid notes can still be listed, and writes return `503` until the file is repaired.
 The UI follows the browser language (including Arabic/RTL), supports search
-(including Arabic alef/tashkeel variants, hamza on waw/yeh, and extra spaces),
+(including Arabic alef/tashkeel variants, hamza on waw/yeh, Farsi yeh/kaf,
+Arabic-Indic digits, extra spaces, and zero-width characters),
 asks before deleting, and can export the visible notes as JSON or Markdown.
 
 ## Project layout

@@ -269,7 +269,9 @@ describe("App", () => {
     expect(downloads[0]?.name).toMatch(/^notes-\d{4}-\d{2}-\d{2}\.json$/);
     expect(downloads[1]?.name).toMatch(/^notes-\d{4}-\d{2}-\d{2}\.md$/);
     expect(createObjectURL).toHaveBeenCalledTimes(2);
-    expect(revokeObjectURL).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(revokeObjectURL).toHaveBeenCalled();
+    });
   });
 
   it("exports only notes matching the current search", async () => {
@@ -333,6 +335,29 @@ describe("App", () => {
     expect(await screen.findByText("شراء حليب")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "إخراج JSON" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "إخراج Markdown" })).toBeInTheDocument();
+  });
+
+  it("shows a localized error when export download fails", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "Buy milk",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    vi.stubGlobal("URL", {
+      createObjectURL: () => {
+        throw new Error("blob urls disabled");
+      },
+      revokeObjectURL: vi.fn(),
+    });
+
+    render(<App />);
+    expect(await screen.findByText("Buy milk")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /export json/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not export notes/i);
   });
 
   it("clears search after creating a note so it stays visible", async () => {
@@ -852,7 +877,28 @@ describe("App", () => {
     );
 
     render(<App />);
-    expect(await screen.findByRole("alert")).toHaveTextContent(/invalid notes response/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /unexpected error/i,
+    );
+    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+  });
+
+  it("shows a localized error when the notes API returns invalid JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("{", {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    );
+
+    render(<App />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /unexpected error/i,
+    );
     expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
   });
 
@@ -1142,6 +1188,26 @@ describe("App", () => {
     await user.type(screen.getByLabelText(/search notes/i), "سوال");
     expect(screen.getByText("سؤال")).toBeInTheDocument();
     expect(screen.queryByText(/no notes match/i)).not.toBeInTheDocument();
+  });
+
+  it("matches Arabic-Indic digits and Farsi yeh in search", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push(
+      { id: "1", title: "ملاحظات ٢٠٢٤", body: "", createdAt: now, updatedAt: now },
+      { id: "2", title: "جديد", body: "", createdAt: now, updatedAt: now },
+    );
+    render(<App />);
+    expect(await screen.findByText("ملاحظات ٢٠٢٤")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/search notes/i), "2024");
+    expect(screen.getByText("ملاحظات ٢٠٢٤")).toBeInTheDocument();
+    expect(screen.queryByText("جديد")).not.toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText(/search notes/i));
+    await user.type(screen.getByLabelText(/search notes/i), "جدید");
+    expect(screen.getByText("جديد")).toBeInTheDocument();
+    expect(screen.queryByText("ملاحظات ٢٠٢٤")).not.toBeInTheDocument();
   });
 
   it("matches notes when the search query has extra spaces", async () => {

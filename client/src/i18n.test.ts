@@ -38,4 +38,12 @@ describe("normalizeForSearch", () => {
     expect(normalizeForSearch("School")).toBe(normalizeForSearch("school"));
     expect(normalizeForSearch("I")).toBe("i");
   });
+
+  it("matches Farsi yeh/kaf, Arabic-Indic digits, and zero-width characters", () => {
+    expect(normalizeForSearch("جديد")).toBe(normalizeForSearch("جدید"));
+    expect(normalizeForSearch("كتاب")).toBe(normalizeForSearch("کتاب"));
+    expect(normalizeForSearch("٢٠٢٤")).toBe(normalizeForSearch("2024"));
+    expect(normalizeForSearch("۲۰۲۴")).toBe(normalizeForSearch("2024"));
+    expect(normalizeForSearch("مر\u200cحبا")).toBe(normalizeForSearch("مرحبا"));
+  });
 });
