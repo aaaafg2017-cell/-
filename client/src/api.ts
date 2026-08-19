@@ -8,6 +8,10 @@ export interface Note {
 
 const BASE = "/api";
 
+async function request(url: string, init?: RequestInit): Promise<Response> {
+  return fetch(url, { cache: "no-store", ...init });
+}
+
 async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
@@ -23,7 +27,7 @@ async function handle<T>(res: Response): Promise<T> {
 }
 
 export async function fetchNotes(): Promise<Note[]> {
-  return handle<Note[]>(await fetch(`${BASE}/notes`));
+  return handle<Note[]>(await request(`${BASE}/notes`));
 }
 
 export async function createNote(input: {
@@ -31,7 +35,7 @@ export async function createNote(input: {
   body: string;
 }): Promise<Note> {
   return handle<Note>(
-    await fetch(`${BASE}/notes`, {
+    await request(`${BASE}/notes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
@@ -44,7 +48,7 @@ export async function updateNote(
   input: { title: string; body: string },
 ): Promise<Note> {
   return handle<Note>(
-    await fetch(`${BASE}/notes/${encodeURIComponent(id)}`, {
+    await request(`${BASE}/notes/${encodeURIComponent(id)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
@@ -54,6 +58,6 @@ export async function updateNote(
 
 export async function deleteNote(id: string): Promise<void> {
   await handle<void>(
-    await fetch(`${BASE}/notes/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    await request(`${BASE}/notes/${encodeURIComponent(id)}`, { method: "DELETE" }),
   );
 }

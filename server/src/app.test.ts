@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -20,12 +20,15 @@ describe("Notes API", () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("ok");
     expect(res.body.persist).toBe("ok");
+    expect(res.headers["cache-control"]).toMatch(/no-store/i);
+    expect(res.headers["x-powered-by"]).toBeUndefined();
   });
 
   it("starts with no notes", async () => {
     const res = await request(app).get("/api/notes");
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
+    expect(res.headers["cache-control"]).toMatch(/no-store/i);
   });
 
   it("creates a note", async () => {
@@ -75,6 +78,15 @@ describe("Notes API", () => {
       .send("{");
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("invalid request body");
+  });
+
+  it("returns 413 JSON when the body exceeds the parser limit", async () => {
+    const tiny = createApp(new NotesStore(), { jsonLimit: "50b" });
+    const res = await request(tiny)
+      .post("/api/notes")
+      .send({ title: "this payload is definitely bigger than fifty bytes" });
+    expect(res.status).toBe(413);
+    expect(res.body.error).toBe("request body too large");
   });
 
   it("lists created notes newest first", async () => {
@@ -233,15 +245,23 @@ describe("Notes API", () => {
         "<!doctype html><title>Notes UI</title>",
         "utf8",
       );
+      mkdirSync(join(dir, "assets"));
+      writeFileSync(join(dir, "assets", "app.js"), "console.log('ok');", "utf8");
       const ui = createApp(new NotesStore(), { staticDir: dir });
 
       const home = await request(ui).get("/");
       expect(home.status).toBe(200);
       expect(home.text).toContain("Notes UI");
+      expect(home.headers["cache-control"]).toMatch(/no-store/i);
 
       const spa = await request(ui).get("/does-not-exist");
       expect(spa.status).toBe(200);
       expect(spa.text).toContain("Notes UI");
+      expect(spa.headers["cache-control"]).toMatch(/no-store/i);
+
+      const hashed = await request(ui).get("/assets/app.js");
+      expect(hashed.status).toBe(200);
+      expect(hashed.headers["cache-control"]).toMatch(/immutable/i);
 
       const missingAsset = await request(ui).get("/assets/missing.js");
       expect(missingAsset.status).toBe(404);

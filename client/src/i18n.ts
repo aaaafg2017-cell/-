@@ -48,6 +48,7 @@ export const copy = {
     edited: "edited",
     retry: "Try again",
     networkError: "Could not reach the notes API. Is the server running?",
+    discardChanges: "You have unsaved changes. Discard them?",
   },
   ar: {
     title: "الملاحظات",
@@ -71,5 +72,6 @@ export const copy = {
     edited: "معدّلة",
     retry: "إعادة المحاولة",
     networkError: "تعذر الوصول إلى واجهة الملاحظات. هل الخادم يعمل؟",
+    discardChanges: "لديك تغييرات غير محفوظة. هل تريد تجاهلها؟",
   },
 } as const;

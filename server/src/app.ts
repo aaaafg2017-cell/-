@@ -1,10 +1,11 @@
-import { extname, resolve } from "node:path";
+import { extname, resolve, sep } from "node:path";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import { NotesStore, PersistError, ValidationError } from "./notesStore.js";
 
 export interface AppOptions {
   staticDir?: string;
+  jsonLimit?: string;
 }
 
 export function createApp(
@@ -12,8 +13,14 @@ export function createApp(
   options: AppOptions = {},
 ): Express {
   const app = express();
+  app.disable("x-powered-by");
   app.use(cors());
-  app.use(express.json({ limit: "32kb" }));
+  app.use(express.json({ limit: options.jsonLimit ?? "256kb" }));
+
+  app.use("/api", (_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader("Cache-Control", "no-store");
+    next();
+  });
 
   app.get("/api/health", (_req: Request, res: Response) => {
     const persist = store.persistStatus();
@@ -75,7 +82,16 @@ export function createApp(
 
   if (options.staticDir) {
     const staticDir = resolve(options.staticDir);
-    app.use(express.static(staticDir));
+    app.use(
+      express.static(staticDir, {
+        index: false,
+        setHeaders(res, filePath) {
+          if (filePath.includes(`${sep}assets${sep}`)) {
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          }
+        },
+      }),
+    );
     app.use((req: Request, res: Response, next: NextFunction) => {
       if (req.method !== "GET" && req.method !== "HEAD") {
         next();
@@ -86,6 +102,7 @@ export function createApp(
         res.status(404).end();
         return;
       }
+      res.setHeader("Cache-Control", "no-store");
       res.sendFile(resolve(staticDir, "index.html"), (err) => {
         if (err) next(err);
       });
@@ -110,7 +127,12 @@ export function createApp(
       console.error(err);
     }
     res.status(status).json({
-      error: status === 400 ? "invalid request body" : "internal server error",
+      error:
+        status === 400
+          ? "invalid request body"
+          : status === 413
+            ? "request body too large"
+            : "internal server error",
     });
   });
 
@@ -118,8 +140,9 @@ export function createApp(
 }
 
 function httpStatus(err: unknown): number {
-  if (typeof err === "object" && err !== null && "status" in err) {
-    const status = Number((err as { status?: unknown }).status);
+  if (typeof err === "object" && err !== null) {
+    const record = err as { status?: unknown; statusCode?: unknown };
+    const status = Number(record.status ?? record.statusCode);
     if (Number.isInteger(status) && status >= 400 && status < 600) {
       return status;
     }

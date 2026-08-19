@@ -114,7 +114,31 @@ export function App() {
     });
   }, [notes, query, editingId]);
 
+  const isDirty = useMemo(() => {
+    if (editingId) {
+      const current = notes.find((note) => note.id === editingId);
+      if (!current) {
+        return true;
+      }
+      return title !== current.title || body !== current.body;
+    }
+    return title.trim() !== "" || body !== "";
+  }, [body, editingId, notes, title]);
+
+  function confirmDiscard(): boolean {
+    if (!isDirty) {
+      return true;
+    }
+    return window.confirm(t.discardChanges);
+  }
+
   function startEdit(note: Note) {
+    if (editingId === note.id && title === note.title && body === note.body) {
+      return;
+    }
+    if (!confirmDiscard()) {
+      return;
+    }
     setEditingId(note.id);
     setTitle(note.title);
     setBody(note.body);
@@ -142,9 +166,21 @@ export function App() {
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [editingId]);
 
+  useEffect(() => {
+    if (!isDirty) {
+      return;
+    }
+    function onBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (saving) {
+    if (saving || deletingId) {
       return;
     }
     if (!title.trim()) {
@@ -174,7 +210,7 @@ export function App() {
   }
 
   async function handleDelete(note: Note) {
-    if (deletingId) {
+    if (deletingId || saving) {
       return;
     }
     if (!window.confirm(t.confirmDelete(note.title))) {
@@ -198,6 +234,7 @@ export function App() {
 
   const showList = !loading && notes.length > 0;
   const showEmpty = !loading && notes.length === 0 && !loadFailed;
+  const formLocked = saving || Boolean(deletingId);
 
   return (
     <main className="app">
@@ -209,7 +246,7 @@ export function App() {
       <form
         className="note-form"
         onSubmit={handleSubmit}
-        aria-busy={saving || loading}
+        aria-busy={formLocked || loading}
         aria-describedby={error ? "app-error" : undefined}
       >
         <input
@@ -217,10 +254,11 @@ export function App() {
           placeholder={t.titlePlaceholder}
           aria-label={t.titleLabel}
           aria-invalid={!title.trim() && error === t.titleRequired}
+          autoComplete="off"
           dir="auto"
           value={title}
           maxLength={TITLE_MAX_LENGTH}
-          disabled={saving}
+          disabled={formLocked}
           onChange={(e) => {
             setTitle(e.target.value);
             if (error === t.titleRequired) {
@@ -232,11 +270,12 @@ export function App() {
           className="note-form__textarea"
           placeholder={t.bodyPlaceholder}
           aria-label={t.bodyLabel}
+          autoComplete="off"
           dir="auto"
           rows={3}
           value={body}
           maxLength={BODY_MAX_LENGTH}
-          disabled={saving}
+          disabled={formLocked}
           onChange={(e) => setBody(e.target.value)}
         />
         <div className="note-form__actions">
@@ -245,12 +284,12 @@ export function App() {
               className="note-form__cancel"
               type="button"
               onClick={cancelEdit}
-              disabled={saving}
+              disabled={formLocked}
             >
               {t.cancel}
             </button>
           )}
-          <button className="note-form__button" type="submit" disabled={saving}>
+          <button className="note-form__button" type="submit" disabled={formLocked}>
             {saving ? t.loading : editingId ? t.save : t.add}
           </button>
         </div>
@@ -322,7 +361,7 @@ export function App() {
                         className="note-card__edit"
                         type="button"
                         onClick={() => startEdit(note)}
-                        disabled={saving || deletingId === note.id}
+                        disabled={formLocked}
                       >
                         {t.edit}
                       </button>
@@ -331,7 +370,7 @@ export function App() {
                         type="button"
                         aria-label={t.delete(note.title)}
                         onClick={() => void handleDelete(note)}
-                        disabled={saving || deletingId === note.id}
+                        disabled={formLocked}
                       >
                         ✕
                       </button>
