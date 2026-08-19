@@ -1,4 +1,4 @@
-import { detectLocale, isArabicLanguage, preferredLanguage } from "./i18n.ts";
+import { detectLocale, isArabicLanguage, normalizeForSearch, preferredLanguage } from "./i18n.ts";
 
 describe("detectLocale", () => {
   it("uses Arabic for ar and ar-* tags", () => {
@@ -19,5 +19,16 @@ describe("detectLocale", () => {
     } as Pick<Navigator, "language" | "languages">;
     expect(preferredLanguage(nav)).toBe("ar-SA");
     expect(detectLocale(preferredLanguage(nav))).toBe("ar");
+  });
+});
+
+describe("normalizeForSearch", () => {
+  it("matches Arabic alef and tashkeel variants", () => {
+    expect(normalizeForSearch("أحمد")).toBe(normalizeForSearch("احمد"));
+    expect(normalizeForSearch("مَرْحَبًا")).toBe(normalizeForSearch("مرحبا"));
+  });
+
+  it("is case-insensitive for Latin letters", () => {
+    expect(normalizeForSearch("School")).toBe(normalizeForSearch("school"));
   });
 });

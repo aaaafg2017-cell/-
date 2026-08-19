@@ -7,7 +7,7 @@ import {
   updateNote,
   type Note,
 } from "./api.ts";
-import { copy, detectLocale } from "./i18n.ts";
+import { copy, detectLocale, normalizeForSearch } from "./i18n.ts";
 
 export const TITLE_MAX_LENGTH = 200;
 export const BODY_MAX_LENGTH = 8000;
@@ -51,6 +51,7 @@ export function App() {
   const refreshId = useRef(0);
   const editingIdRef = useRef<string | null>(null);
   const isDirtyRef = useRef(false);
+  const inFlightRef = useRef(false);
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -94,6 +95,9 @@ export function App() {
   }
 
   async function handleRetry() {
+    if (inFlightRef.current) {
+      return;
+    }
     if (notes.length === 0) {
       setLoading(true);
     }
@@ -105,7 +109,7 @@ export function App() {
   }, []);
 
   const visibleNotes = useMemo(() => {
-    const needle = query.trim().toLowerCase();
+    const needle = normalizeForSearch(query.trim());
     return notes.filter((note) => {
       if (editingId === note.id) {
         return true;
@@ -114,8 +118,8 @@ export function App() {
         return true;
       }
       return (
-        note.title.toLowerCase().includes(needle) ||
-        note.body.toLowerCase().includes(needle)
+        normalizeForSearch(note.title).includes(needle) ||
+        normalizeForSearch(note.body).includes(needle)
       );
     });
   }, [notes, query, editingId]);
@@ -141,12 +145,17 @@ export function App() {
   }
 
   function startEdit(note: Note) {
+    if (inFlightRef.current) {
+      return;
+    }
     if (editingId === note.id && title === note.title && body === note.body) {
       return;
     }
     if (!confirmDiscard()) {
       return;
     }
+    editingIdRef.current = note.id;
+    isDirtyRef.current = false;
     setEditingId(note.id);
     setTitle(note.title);
     setBody(note.body);
@@ -163,7 +172,7 @@ export function App() {
   }
 
   function requestCancelEdit() {
-    if (!editingIdRef.current) {
+    if (inFlightRef.current || !editingIdRef.current) {
       return;
     }
     if (!confirmDiscard()) {
@@ -198,54 +207,66 @@ export function App() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (saving || deletingId) {
+    if (inFlightRef.current || loading || saving || deletingId) {
       return;
     }
     if (!title.trim()) {
       setError(t.titleRequired);
       return;
     }
+    if (editingId && !isDirtyRef.current) {
+      return;
+    }
     setError(null);
+    inFlightRef.current = true;
     setSaving(true);
     try {
       if (editingId) {
         const updated = await updateNote(editingId, { title, body });
         setNotes((current) => upsertNote(current, updated));
-        setEditingId(null);
       } else {
         const created = await createNote({ title, body });
         setNotes((current) => upsertNote(current, created));
       }
+      editingIdRef.current = null;
+      isDirtyRef.current = false;
+      setEditingId(null);
       setQuery("");
       setTitle("");
       setBody("");
-      await refresh();
+      await refresh(INITIAL_LOAD_RETRIES);
     } catch (err) {
       setError(isNetworkError(err) ? t.networkError : (err as Error).message);
     } finally {
+      inFlightRef.current = false;
       setSaving(false);
     }
   }
 
   async function handleDelete(note: Note) {
-    if (deletingId || saving) {
+    if (inFlightRef.current || deletingId || saving) {
       return;
     }
     if (!window.confirm(t.confirmDelete(note.title))) {
       return;
     }
+    if (inFlightRef.current) {
+      return;
+    }
     setError(null);
+    inFlightRef.current = true;
     setDeletingId(note.id);
     try {
       await deleteNote(note.id);
       setNotes((current) => current.filter((item) => item.id !== note.id));
-      if (editingId === note.id) {
+      if (editingIdRef.current === note.id) {
         cancelEdit();
       }
-      await refresh();
+      await refresh(INITIAL_LOAD_RETRIES);
     } catch (err) {
       setError(isNetworkError(err) ? t.networkError : (err as Error).message);
     } finally {
+      inFlightRef.current = false;
       setDeletingId(null);
     }
   }
@@ -253,6 +274,7 @@ export function App() {
   const showList = !loading && notes.length > 0;
   const showEmpty = !loading && notes.length === 0 && !loadFailed;
   const formLocked = saving || Boolean(deletingId);
+  const submitLocked = formLocked || loading;
 
   return (
     <main className="app">
@@ -307,7 +329,11 @@ export function App() {
               {t.cancel}
             </button>
           )}
-          <button className="note-form__button" type="submit" disabled={formLocked}>
+          <button
+            className="note-form__button"
+            type="submit"
+            disabled={submitLocked || Boolean(editingId && !isDirty)}
+          >
             {saving ? t.loading : editingId ? t.save : t.add}
           </button>
         </div>
@@ -325,6 +351,7 @@ export function App() {
             className="note-form__button"
             type="button"
             onClick={() => void handleRetry()}
+            disabled={formLocked}
           >
             {t.retry}
           </button>

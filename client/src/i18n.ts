@@ -25,6 +25,21 @@ export function detectLocale(language = preferredLanguage()): Locale {
   return isArabicLanguage(language) ? "ar" : "en";
 }
 
+/**
+ * Normalize text for client-side search so Arabic alef/tashkeel variants and
+ * Latin case differences still match the stored note.
+ */
+export function normalizeForSearch(text: string): string {
+  return text
+    .normalize("NFKD")
+    .toLocaleLowerCase()
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, "")
+    .replace(/\u0640/g, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي");
+}
+
 export const copy = {
   en: {
     title: "Notes",

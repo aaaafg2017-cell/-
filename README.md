@@ -60,8 +60,8 @@ their current values. Unknown `/api` routes return JSON `404`. Notes are
 saved to `server/data/notes.json` (override with `NOTES_DATA_FILE`) so they survive
 API restarts. Writes are atomic (`tmp` + rename). A corrupt file is never
 overwritten, and listing notes then returns `503` instead of an empty list.
-The UI follows the browser language (including Arabic/RTL), supports search,
-and asks before deleting.
+The UI follows the browser language (including Arabic/RTL), supports search
+(including Arabic alef/tashkeel variants), and asks before deleting.
 
 ## Project layout
 

@@ -177,6 +177,18 @@ describe("Notes API", () => {
     expect(res.body.error).toMatch(/title or body/);
   });
 
+  it("does not mark a note edited when PUT repeats the same fields", async () => {
+    const created = await request(app)
+      .post("/api/notes")
+      .send({ title: "same", body: "body" });
+    const res = await request(app)
+      .put(`/api/notes/${created.body.id}`)
+      .send({ title: "same", body: " body " });
+    expect(res.status).toBe(200);
+    expect(res.body.updatedAt).toBe(created.body.updatedAt);
+    expect(res.body).toMatchObject({ title: "same", body: "body" });
+  });
+
   it("returns 404 when updating a missing note", async () => {
     const res = await request(app)
       .put("/api/notes/does-not-exist")

@@ -87,10 +87,15 @@ export class NotesStore {
     if (!hasTitle && !hasBody) {
       throw new ValidationError("title or body is required");
     }
+    const nextTitle = hasTitle ? normalizeTitle(input.title) : existing.title;
+    const nextBody = hasBody ? normalizeBody(input.body) : existing.body;
+    if (nextTitle === existing.title && nextBody === existing.body) {
+      return existing;
+    }
     const updated: Note = {
       ...existing,
-      title: hasTitle ? normalizeTitle(input.title) : existing.title,
-      body: hasBody ? normalizeBody(input.body) : existing.body,
+      title: nextTitle,
+      body: nextBody,
       updatedAt: new Date().toISOString(),
     };
     this.notes.set(id, updated);
