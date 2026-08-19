@@ -30,5 +30,6 @@ describe("normalizeForSearch", () => {
 
   it("is case-insensitive for Latin letters", () => {
     expect(normalizeForSearch("School")).toBe(normalizeForSearch("school"));
+    expect(normalizeForSearch("I")).toBe("i");
   });
 });

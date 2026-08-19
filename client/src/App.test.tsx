@@ -137,7 +137,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText("Kept note")).toBeInTheDocument();
     });
-    expect(screen.getByRole("alert")).toHaveTextContent(/could not be loaded/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/could not load notes from disk/i);
     expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
   });
 
@@ -796,5 +796,157 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /save note/i })).toBeDisabled();
     await user.type(screen.getByLabelText(/note title/i), "!");
     expect(screen.getByRole("button", { name: /save note/i })).toBeEnabled();
+  });
+
+  it("keeps valid notes when the list payload includes invalid items", async () => {
+    const now = new Date().toISOString();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse([
+          {
+            id: "1",
+            title: "Kept",
+            body: "",
+            createdAt: now,
+            updatedAt: now,
+          },
+          null,
+          { not: "a note" },
+        ]),
+      ),
+    );
+
+    render(<App />);
+    expect(await screen.findByText("Kept")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows a localized persist error after a 503", async () => {
+    Object.defineProperty(navigator, "language", {
+      configurable: true,
+      get: () => "ar",
+    });
+    Object.defineProperty(navigator, "languages", {
+      configurable: true,
+      get: () => ["ar"],
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse({ error: "notes data file could not be loaded" }, 503),
+      ),
+    );
+
+    render(<App />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /تعذر تحميل الملاحظات من القرص/,
+    );
+    expect(screen.getByRole("button", { name: "إعادة المحاولة" })).toBeInTheDocument();
+  });
+
+  it("keeps the load error when starting an edit", async () => {
+    const user = userEvent.setup();
+    let getCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        const method = init?.method ?? "GET";
+        const parsed = init?.body
+          ? (JSON.parse(String(init.body)) as { title: string; body?: string })
+          : undefined;
+
+        if (url.endsWith("/api/notes") && method === "GET") {
+          getCount += 1;
+          if (getCount > 1) {
+            return jsonResponse(
+              { error: "notes data file could not be loaded" },
+              503,
+            );
+          }
+          return jsonResponse(notes);
+        }
+        if (url.endsWith("/api/notes") && method === "POST") {
+          const now = new Date().toISOString();
+          const note: Note = {
+            id: "created-1",
+            title: parsed?.title ?? "",
+            body: parsed?.body ?? "",
+            createdAt: now,
+            updatedAt: now,
+          };
+          notes.unshift(note);
+          return jsonResponse(note, 201);
+        }
+        return jsonResponse({ error: "not found" }, 404);
+      }),
+    );
+
+    render(<App />);
+    await screen.findByText(/no notes yet/i);
+    await user.type(screen.getByLabelText(/note title/i), "Kept note");
+    await user.click(screen.getByRole("button", { name: /add note/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /could not load notes from disk/i,
+    );
+
+    await user.click(screen.getByRole("button", { name: /edit/i }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /could not load notes from disk/i,
+    );
+    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+  });
+
+  it("asks before discarding a new unsaved draft with Escape", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<App />);
+    await screen.findByText(/no notes yet/i);
+
+    await user.type(screen.getByLabelText(/note title/i), "Draft title");
+    await user.keyboard("{Escape}");
+
+    expect(confirm).toHaveBeenCalled();
+    expect(screen.getByLabelText(/note title/i)).toHaveValue("Draft title");
+    expect(screen.getByRole("button", { name: /cancel/i })).toBeInTheDocument();
+  });
+
+  it("turns a missing edited note into a new draft", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "Draft",
+      body: "body",
+      createdAt: now,
+      updatedAt: now,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        const method = init?.method ?? "GET";
+        if (url.endsWith("/api/notes") && method === "GET") {
+          return jsonResponse(notes);
+        }
+        if (method === "PUT") {
+          return jsonResponse({ error: "note not found" }, 404);
+        }
+        return jsonResponse({ error: "not found" }, 404);
+      }),
+    );
+
+    render(<App />);
+    expect(await screen.findByText("Draft")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /edit/i }));
+    await user.type(screen.getByLabelText(/note title/i), " kept");
+    await user.click(screen.getByRole("button", { name: /save note/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /save again to keep it as a new note/i,
+    );
+    expect(screen.getByRole("button", { name: /add note/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/note title/i)).toHaveValue("Draft kept");
   });
 });

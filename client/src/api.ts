@@ -36,24 +36,74 @@ async function handle<T>(res: Response): Promise<T> {
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
 
-export async function fetchNotes(): Promise<Note[]> {
-  const data: unknown = await handle<unknown>(await request(`${BASE}/notes`));
-  if (!Array.isArray(data)) {
+export function parseNote(value: unknown): Note | undefined {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.id !== "string" ||
+    record.id.length === 0 ||
+    typeof record.title !== "string" ||
+    typeof record.body !== "string" ||
+    typeof record.createdAt !== "string"
+  ) {
+    return undefined;
+  }
+  const updatedAt =
+    typeof record.updatedAt === "string" ? record.updatedAt : record.createdAt;
+  return {
+    id: record.id,
+    title: record.title,
+    body: record.body,
+    createdAt: record.createdAt,
+    updatedAt,
+  };
+}
+
+export function parseNotes(value: unknown): Note[] {
+  if (!Array.isArray(value)) {
     throw new ApiError("invalid notes response", 500);
   }
-  return data as Note[];
+  const byId = new Map<string, Note>();
+  for (const item of value) {
+    const note = parseNote(item);
+    if (note) {
+      byId.set(note.id, note);
+    }
+  }
+  if (value.length > 0 && byId.size === 0) {
+    throw new ApiError("invalid notes response", 500);
+  }
+  return [...byId.values()].sort((a, b) =>
+    b.updatedAt.localeCompare(a.updatedAt),
+  );
+}
+
+function requireNote(value: unknown): Note {
+  const note = parseNote(value);
+  if (!note) {
+    throw new ApiError("invalid notes response", 500);
+  }
+  return note;
+}
+
+export async function fetchNotes(): Promise<Note[]> {
+  return parseNotes(await handle<unknown>(await request(`${BASE}/notes`)));
 }
 
 export async function createNote(input: {
   title: string;
   body: string;
 }): Promise<Note> {
-  return handle<Note>(
-    await request(`${BASE}/notes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    }),
+  return requireNote(
+    await handle<unknown>(
+      await request(`${BASE}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }),
+    ),
   );
 }
 
@@ -61,12 +111,14 @@ export async function updateNote(
   id: string,
   input: { title: string; body: string },
 ): Promise<Note> {
-  return handle<Note>(
-    await request(`${BASE}/notes/${encodeURIComponent(id)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    }),
+  return requireNote(
+    await handle<unknown>(
+      await request(`${BASE}/notes/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }),
+    ),
   );
 }
 

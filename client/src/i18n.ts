@@ -32,7 +32,7 @@ export function detectLocale(language = preferredLanguage()): Locale {
 export function normalizeForSearch(text: string): string {
   return text
     .normalize("NFKD")
-    .toLocaleLowerCase()
+    .toLowerCase()
     .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, "")
     .replace(/\u0640/g, "")
     .replace(/[أإآٱ]/g, "ا")
@@ -63,6 +63,12 @@ export const copy = {
     edited: "edited",
     retry: "Try again",
     networkError: "Could not reach the notes API. Is the server running?",
+    persistError:
+      "Could not load notes from disk. Saving is paused until this is fixed.",
+    notFound: "That note no longer exists.",
+    notFoundRecreate:
+      "That note was deleted. Save again to keep it as a new note.",
+    tooLarge: "That note is too large to save.",
     discardChanges: "You have unsaved changes. Discard them?",
   },
   ar: {
@@ -87,6 +93,12 @@ export const copy = {
     edited: "معدّلة",
     retry: "إعادة المحاولة",
     networkError: "تعذر الوصول إلى واجهة الملاحظات. هل الخادم يعمل؟",
+    persistError:
+      "تعذر تحميل الملاحظات من القرص. تم إيقاف الحفظ حتى يتم إصلاح ذلك.",
+    notFound: "لم تعد هذه الملاحظة موجودة.",
+    notFoundRecreate:
+      "تم حذف هذه الملاحظة. احفظ مرة أخرى لإبقائها كملاحظة جديدة.",
+    tooLarge: "هذه الملاحظة أكبر من أن تُحفظ.",
     discardChanges: "لديك تغييرات غير محفوظة. هل تريد تجاهلها؟",
   },
 } as const;
