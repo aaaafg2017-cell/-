@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
+  ApiError,
   createNote,
   deleteNote,
   fetchNotes,
@@ -20,7 +21,10 @@ function upsertNote(notes: Note[], note: Note): Note[] {
 }
 
 function isNetworkError(err: unknown): boolean {
-  return err instanceof TypeError;
+  if (err instanceof TypeError) {
+    return true;
+  }
+  return err instanceof ApiError && (err.status === 502 || err.status === 504);
 }
 
 function formatTimestamp(iso: string, locale: ReturnType<typeof detectLocale>): string {
@@ -91,7 +95,7 @@ export function App() {
     if (notes.length === 0) {
       setLoading(true);
     }
-    await refresh();
+    await refresh(INITIAL_LOAD_RETRIES);
   }
 
   useEffect(() => {
@@ -120,9 +124,9 @@ export function App() {
       if (!current) {
         return true;
       }
-      return title !== current.title || body !== current.body;
+      return title.trim() !== current.title || body.trim() !== current.body;
     }
-    return title.trim() !== "" || body !== "";
+    return title.trim() !== "" || body.trim() !== "";
   }, [body, editingId, notes, title]);
 
   function confirmDiscard(): boolean {
@@ -152,6 +156,13 @@ export function App() {
     setError(null);
   }
 
+  function requestCancelEdit() {
+    if (!confirmDiscard()) {
+      return;
+    }
+    cancelEdit();
+  }
+
   useEffect(() => {
     if (!editingId) {
       return;
@@ -159,12 +170,12 @@ export function App() {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
-        cancelEdit();
+        requestCancelEdit();
       }
     }
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [editingId]);
+  }, [editingId, isDirty, t.discardChanges]);
 
   useEffect(() => {
     if (!isDirty) {
@@ -283,7 +294,7 @@ export function App() {
             <button
               className="note-form__cancel"
               type="button"
-              onClick={cancelEdit}
+              onClick={requestCancelEdit}
               disabled={formLocked}
             >
               {t.cancel}
