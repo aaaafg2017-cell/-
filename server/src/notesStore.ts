@@ -50,9 +50,7 @@ export class NotesStore {
 
   list(): Note[] {
     this.assertReadable();
-    return [...this.notes.values()].sort((a, b) =>
-      b.updatedAt.localeCompare(a.updatedAt),
-    );
+    return [...this.notes.values()].sort(compareNotes);
   }
 
   get(id: string): Note | undefined {
@@ -196,28 +194,30 @@ export class NotesStore {
           : "notes data file has invalid records; refusing to overwrite it",
       );
     }
-    mkdirSync(dirname(this.persistPath), { recursive: true });
-    const tmpPath = `${this.persistPath}.${process.pid}.tmp`;
     try {
-      writeFileSync(
-        tmpPath,
-        JSON.stringify(
-          [...this.notes.values()].sort((a, b) =>
-            b.updatedAt.localeCompare(a.updatedAt),
-          ),
-          null,
-          2,
-        ),
-        "utf8",
-      );
-      renameSync(tmpPath, this.persistPath);
-    } catch (err) {
+      mkdirSync(dirname(this.persistPath), { recursive: true });
+      const tmpPath = `${this.persistPath}.${process.pid}.tmp`;
       try {
-        unlinkSync(tmpPath);
-      } catch {
-        // ignore cleanup failures
+        writeFileSync(
+          tmpPath,
+          JSON.stringify([...this.notes.values()].sort(compareNotes), null, 2),
+          "utf8",
+        );
+        renameSync(tmpPath, this.persistPath);
+      } catch (err) {
+        try {
+          unlinkSync(tmpPath);
+        } catch {
+          // ignore cleanup failures
+        }
+        throw err;
       }
-      throw err;
+    } catch (err) {
+      if (err instanceof PersistError) {
+        throw err;
+      }
+      const detail = err instanceof Error ? err.message : "unknown error";
+      throw new PersistError(`could not write notes data file: ${detail}`);
     }
   }
 }
@@ -261,12 +261,14 @@ function asNote(value: unknown): Note | undefined {
   ) {
     return undefined;
   }
-  if (Number.isNaN(Date.parse(record.createdAt))) {
+  const createdAt = canonicalIso(record.createdAt);
+  if (!createdAt) {
     return undefined;
   }
-  const updatedAt =
-    typeof record.updatedAt === "string" ? record.updatedAt : record.createdAt;
-  if (Number.isNaN(Date.parse(updatedAt))) {
+  const updatedAt = canonicalIso(
+    typeof record.updatedAt === "string" ? record.updatedAt : record.createdAt,
+  );
+  if (!updatedAt) {
     return undefined;
   }
   try {
@@ -274,12 +276,27 @@ function asNote(value: unknown): Note | undefined {
       id: record.id,
       title: normalizeTitle(record.title),
       body: normalizeBody(record.body),
-      createdAt: record.createdAt,
+      createdAt,
       updatedAt,
     };
   } catch {
     return undefined;
   }
+}
+
+function canonicalIso(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const ms = Date.parse(value);
+  if (Number.isNaN(ms)) {
+    return undefined;
+  }
+  return new Date(ms).toISOString();
+}
+
+function compareNotes(a: Note, b: Note): number {
+  return Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
 }
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {

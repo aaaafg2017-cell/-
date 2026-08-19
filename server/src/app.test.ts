@@ -340,4 +340,24 @@ describe("Notes API", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("returns 503 JSON when a persist write fails", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "notes-write-"));
+    const file = join(dir, "notes.json");
+    try {
+      const store = new NotesStore(file);
+      rmSync(dir, { recursive: true, force: true });
+      writeFileSync(dir, "not a directory", "utf8");
+      const persisted = createApp(store);
+      const res = await request(persisted).post("/api/notes").send({ title: "x" });
+      expect(res.status).toBe(503);
+      expect(res.body.error).toMatch(/could not write notes data file/);
+    } finally {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+      } catch {
+        rmSync(dir, { force: true });
+      }
+    }
+  });
 });

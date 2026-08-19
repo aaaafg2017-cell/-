@@ -36,8 +36,10 @@ export function normalizeForSearch(text: string): string {
     .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, "")
     .replace(/\u0640/g, "")
     .replace(/[أإآٱ]/g, "ا")
+    .replace(/ؤ/g, "و")
+    .replace(/[ئى]/g, "ي")
     .replace(/ة/g, "ه")
-    .replace(/ى/g, "ي");
+    .replace(/\s+/g, " ");
 }
 
 export const copy = {

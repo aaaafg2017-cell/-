@@ -27,6 +27,20 @@ describe("parseNote", () => {
     });
   });
 
+  it("canonicalizes mixed timestamp formats", () => {
+    expect(
+      parseNote({
+        ...valid,
+        createdAt: "2024-01-01T00:00:00Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      }),
+    ).toEqual({
+      ...valid,
+      createdAt: "2024-01-01T00:00:00.000Z",
+      updatedAt: "2024-01-01T00:00:00.000Z",
+    });
+  });
+
   it("rejects missing fields, empty ids, empty titles, and over-length text", () => {
     expect(parseNote(null)).toBeUndefined();
     expect(parseNote({ ...valid, id: "" })).toBeUndefined();
@@ -54,5 +68,26 @@ describe("parseNotes", () => {
 
   it("throws when every item is invalid", () => {
     expect(() => parseNotes([{ not: "a note" }])).toThrow(/invalid notes response/);
+  });
+
+  it("sorts notes by instant rather than timestamp string", () => {
+    const older = {
+      ...valid,
+      id: "older",
+      title: "older",
+      createdAt: "2024-01-01T00:00:00.500Z",
+      updatedAt: "2024-01-01T00:00:00.500Z",
+    };
+    const newer = {
+      ...valid,
+      id: "newer",
+      title: "newer",
+      createdAt: "2024-01-01T00:00:01Z",
+      updatedAt: "2024-01-01T00:00:01Z",
+    };
+    expect(parseNotes([older, newer]).map((note) => note.id)).toEqual([
+      "newer",
+      "older",
+    ]);
   });
 });
