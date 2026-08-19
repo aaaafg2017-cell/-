@@ -24,16 +24,20 @@ async function request(url: string, init?: RequestInit): Promise<Response> {
 
 async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    let message = `Request failed (${res.status})`;
-    try {
-      const data = await res.json();
-      if (data?.error) message = data.error;
-    } catch {
-      // ignore non-JSON error bodies
-    }
-    throw new ApiError(message, res.status);
+    throw await toApiError(res);
   }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
+}
+
+async function toApiError(res: Response): Promise<ApiError> {
+  let message = `Request failed (${res.status})`;
+  try {
+    const data = await res.json();
+    if (data?.error) message = data.error;
+  } catch {
+    // ignore non-JSON error bodies
+  }
+  return new ApiError(message, res.status);
 }
 
 const TITLE_MAX_LENGTH = 200;
@@ -159,4 +163,39 @@ export async function deleteNote(id: string): Promise<void> {
   await handle<void>(
     await request(`${BASE}/notes/${encodeURIComponent(id)}`, { method: "DELETE" }),
   );
+}
+
+export type ExportFormat = "json" | "markdown";
+
+export interface NotesExport {
+  blob: Blob;
+  filename: string;
+}
+
+/** Filenames are quoted and ASCII-only, so a simple match is enough here. */
+export function filenameFromDisposition(header: string | null): string | undefined {
+  if (!header) {
+    return undefined;
+  }
+  const match = header.match(/filename="([^"\\/]+)"/i) ?? header.match(/filename=([^;\s]+)/i);
+  const filename = match?.[1]?.trim();
+  return filename && !filename.includes("/") ? filename : undefined;
+}
+
+export function defaultExportFilename(format: ExportFormat, now = new Date()): string {
+  const stamp = now.toISOString().slice(0, 10);
+  return `notes-${stamp}.${format === "markdown" ? "md" : "json"}`;
+}
+
+export async function exportNotes(format: ExportFormat): Promise<NotesExport> {
+  const res = await request(`${BASE}/notes/export?format=${format}`);
+  if (!res.ok) {
+    throw await toApiError(res);
+  }
+  return {
+    blob: await res.blob(),
+    filename:
+      filenameFromDisposition(res.headers.get("Content-Disposition")) ??
+      defaultExportFilename(format),
+  };
 }

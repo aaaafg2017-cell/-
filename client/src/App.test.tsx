@@ -5,6 +5,7 @@ import { App } from "./App.tsx";
 import type { Note } from "./api.ts";
 
 const notes: Note[] = [];
+const restoreUrl: (() => void)[] = [];
 
 beforeEach(() => {
   notes.length = 0;
@@ -40,6 +41,9 @@ beforeEach(() => {
         notes.unshift(note);
         return jsonResponse(note, 201);
       }
+      if (url.startsWith("/api/notes/export")) {
+        return exportResponse(notes);
+      }
       const idMatch = url.match(/\/api\/notes\/([^/]+)$/);
       const id = idMatch?.[1];
       if (id && method === "PUT") {
@@ -69,6 +73,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  while (restoreUrl.length > 0) {
+    restoreUrl.pop()?.();
+  }
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -78,6 +85,43 @@ function jsonResponse(data: unknown, status = 200): Response {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+function exportResponse(data: unknown): Response {
+  return new Response(JSON.stringify(data, null, 2), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Disposition": 'attachment; filename="notes-2024-01-01.json"',
+    },
+  });
+}
+
+/** jsdom implements neither object URLs nor anchor-triggered downloads. */
+function stubDownloads() {
+  const createObjectURL = vi.fn(() => "blob:notes");
+  const revokeObjectURL = vi.fn();
+  for (const [name, value] of [
+    ["createObjectURL", createObjectURL],
+    ["revokeObjectURL", revokeObjectURL],
+  ] as const) {
+    const original = Object.getOwnPropertyDescriptor(URL, name);
+    Object.defineProperty(URL, name, { configurable: true, writable: true, value });
+    restoreUrl.push(() => {
+      if (original) {
+        Object.defineProperty(URL, name, original);
+      } else {
+        Reflect.deleteProperty(URL, name);
+      }
+    });
+  }
+  const clicks: { href: string; download: string }[] = [];
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+    this: HTMLAnchorElement,
+  ) {
+    clicks.push({ href: this.href, download: this.download });
+  });
+  return { clicks, revokeObjectURL };
 }
 
 describe("App", () => {
@@ -1067,6 +1111,79 @@ describe("App", () => {
     await user.type(screen.getByLabelText(/search notes/i), "Buy  milk");
     expect(screen.getByText("Buy milk")).toBeInTheDocument();
     expect(screen.queryByText(/no notes match/i)).not.toBeInTheDocument();
+  });
+
+  it("downloads a JSON export using the filename from the server", async () => {
+    const user = userEvent.setup();
+    const { clicks, revokeObjectURL } = stubDownloads();
+    const now = new Date().toISOString();
+    notes.push({ id: "1", title: "Buy milk", body: "2 liters", createdAt: now, updatedAt: now });
+    render(<App />);
+    expect(await screen.findByText("Buy milk")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /export json/i }));
+
+    await waitFor(() => {
+      expect(clicks).toEqual([{ href: "blob:notes", download: "notes-2024-01-01.json" }]);
+    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/notes/export?format=json",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+    await waitFor(() => {
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:notes");
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("requests the Markdown format from the export buttons", async () => {
+    const user = userEvent.setup();
+    const { clicks } = stubDownloads();
+    const now = new Date().toISOString();
+    notes.push({ id: "1", title: "Buy milk", body: "", createdAt: now, updatedAt: now });
+    render(<App />);
+    expect(await screen.findByText("Buy milk")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /export markdown/i }));
+
+    await waitFor(() => {
+      expect(clicks).toHaveLength(1);
+    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/notes/export?format=markdown",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+  });
+
+  it("hides the export buttons until there are notes", async () => {
+    render(<App />);
+    await screen.findByText(/no notes yet/i);
+    expect(screen.queryByRole("button", { name: /export json/i })).not.toBeInTheDocument();
+  });
+
+  it("shows a localized error when the export fails", async () => {
+    const user = userEvent.setup();
+    stubDownloads();
+    const now = new Date().toISOString();
+    notes.push({ id: "1", title: "Buy milk", body: "", createdAt: now, updatedAt: now });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.startsWith("/api/notes/export")) {
+          return jsonResponse({ error: "notes data file could not be loaded" }, 503);
+        }
+        return jsonResponse(notes);
+      }),
+    );
+
+    render(<App />);
+    expect(await screen.findByText("Buy milk")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /export json/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /could not load notes from disk/i,
+    );
   });
 
   it("localizes validation errors from the API", async () => {
