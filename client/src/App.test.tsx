@@ -295,7 +295,12 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: /export json/i }));
 
     expect(blobs).toHaveLength(1);
-    const text = await blobs[0].text();
+    const text = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error ?? new Error("read failed"));
+      reader.readAsText(blobs[0]);
+    });
     const payload = JSON.parse(text) as { count: number; notes: Note[] };
     expect(payload.count).toBe(1);
     expect(payload.notes.map((note) => note.title)).toEqual(["Walk dog"]);
