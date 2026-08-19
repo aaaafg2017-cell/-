@@ -269,7 +269,9 @@ describe("App", () => {
     expect(downloads[0]?.name).toMatch(/^notes-\d{4}-\d{2}-\d{2}\.json$/);
     expect(downloads[1]?.name).toMatch(/^notes-\d{4}-\d{2}-\d{2}\.md$/);
     expect(createObjectURL).toHaveBeenCalledTimes(2);
-    expect(revokeObjectURL).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(revokeObjectURL).toHaveBeenCalled();
+    });
   });
 
   it("exports only notes matching the current search", async () => {
@@ -304,6 +306,87 @@ describe("App", () => {
     const payload = JSON.parse(text) as { count: number; notes: Note[] };
     expect(payload.count).toBe(1);
     expect(payload.notes.map((note) => note.title)).toEqual(["Walk dog"]);
+  });
+
+  it("does not export a note that is only visible because it is being edited", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push(
+      { id: "1", title: "Buy milk", body: "2 liters", createdAt: now, updatedAt: now },
+      { id: "2", title: "Walk dog", body: "evening", createdAt: now, updatedAt: now },
+    );
+    render(<App />);
+    expect(await screen.findByText("Buy milk")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /edit buy milk/i }));
+    await user.type(screen.getByLabelText(/search notes/i), "dog");
+
+    expect(screen.getByText("Buy milk")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /export json/i })).toBeEnabled();
+
+    const blobs: Blob[] = [];
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn((blob: Blob) => {
+        blobs.push(blob);
+        return `blob:notes-${blobs.length}`;
+      }),
+      revokeObjectURL: vi.fn(),
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    await user.click(screen.getByRole("button", { name: /export json/i }));
+
+    expect(blobs).toHaveLength(1);
+    const text = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error ?? new Error("read failed"));
+      reader.readAsText(blobs[0]);
+    });
+    const payload = JSON.parse(text) as { count: number; notes: Note[] };
+    expect(payload.count).toBe(1);
+    expect(payload.notes.map((note) => note.title)).toEqual(["Walk dog"]);
+  });
+
+  it("disables export when search matches nothing, even if an edit is open", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "Buy milk",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByText("Buy milk")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /edit/i }));
+    await user.type(screen.getByLabelText(/search notes/i), "zzzz");
+
+    expect(screen.getByText("Buy milk")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /export json/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /export markdown/i })).toBeDisabled();
+  });
+
+  it("shows an error when the browser cannot export", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "Buy milk",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    vi.stubGlobal("URL", { createObjectURL: undefined, revokeObjectURL: vi.fn() });
+    render(<App />);
+    expect(await screen.findByText("Buy milk")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /export json/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /could not export notes in this browser/i,
+    );
   });
 
   it("hides export controls when there are no notes", async () => {
@@ -1141,6 +1224,24 @@ describe("App", () => {
 
     await user.type(screen.getByLabelText(/search notes/i), "سوال");
     expect(screen.getByText("سؤال")).toBeInTheDocument();
+    expect(screen.queryByText(/no notes match/i)).not.toBeInTheDocument();
+  });
+
+  it("matches notes that use Eastern Arabic digits or Persian yeh", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "ایران ٢",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByText("ایران ٢")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/search notes/i), "ايران 2");
+    expect(screen.getByText("ایران ٢")).toBeInTheDocument();
     expect(screen.queryByText(/no notes match/i)).not.toBeInTheDocument();
   });
 

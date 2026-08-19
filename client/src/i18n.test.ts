@@ -28,10 +28,17 @@ describe("normalizeForSearch", () => {
     expect(normalizeForSearch("مَرْحَبًا")).toBe(normalizeForSearch("مرحبا"));
   });
 
-  it("matches hamza on waw/yeh and extra spaces", () => {
+  it("matches hamza on waw/yeh, Persian yeh/kaf, digits, and extra spaces", () => {
     expect(normalizeForSearch("سؤال")).toBe(normalizeForSearch("سوال"));
     expect(normalizeForSearch("مسائل")).toBe(normalizeForSearch("مسايل"));
+    expect(normalizeForSearch("ایران")).toBe(normalizeForSearch("ايران"));
+    expect(normalizeForSearch("كتاب")).toBe(normalizeForSearch("کتاب"));
+    expect(normalizeForSearch("ملاحظات ٢")).toBe(normalizeForSearch("ملاحظات 2"));
     expect(normalizeForSearch("hello  world")).toBe(normalizeForSearch("hello world"));
+  });
+
+  it("strips Latin combining accents after NFKD", () => {
+    expect(normalizeForSearch("Café")).toBe(normalizeForSearch("cafe"));
   });
 
   it("is case-insensitive for Latin letters", () => {

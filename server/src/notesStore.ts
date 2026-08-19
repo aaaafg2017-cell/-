@@ -67,6 +67,7 @@ export class NotesStore {
       createdAt: now,
       updatedAt: now,
     };
+    this.refuseWritesIfNeeded();
     this.notes.set(note.id, note);
     this.commitOrRollback(() => {
       this.notes.delete(note.id);
@@ -90,6 +91,7 @@ export class NotesStore {
     if (nextTitle === existing.title && nextBody === existing.body) {
       return existing;
     }
+    this.refuseWritesIfNeeded();
     const updated: Note = {
       ...existing,
       title: nextTitle,
@@ -109,6 +111,7 @@ export class NotesStore {
     if (!existing) {
       return false;
     }
+    this.refuseWritesIfNeeded();
     this.notes.delete(id);
     this.commitOrRollback(() => {
       this.notes.set(id, existing);
@@ -117,6 +120,7 @@ export class NotesStore {
   }
 
   clear(): void {
+    this.refuseWritesIfNeeded();
     const snapshot = [...this.notes.values()];
     this.notes.clear();
     this.commitOrRollback(() => {
@@ -172,6 +176,17 @@ export class NotesStore {
         "notes data file could not be loaded",
       );
     }
+  }
+
+  private refuseWritesIfNeeded(): void {
+    if (!this.loadFailed) {
+      return;
+    }
+    throw new PersistError(
+      this.notes.size === 0
+        ? "notes data file could not be loaded; refusing to overwrite it"
+        : "notes data file has invalid records; refusing to overwrite it",
+    );
   }
 
   private commitOrRollback(rollback: () => void): void {

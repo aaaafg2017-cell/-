@@ -78,6 +78,22 @@ describe("notes export rendering", () => {
     expect(md).toContain("_No notes._");
   });
 
+  it("escapes markdown headings so titles cannot inject structure", () => {
+    const md = notesToMarkdown(
+      [
+        {
+          id: "x",
+          title: "# injected",
+          body: "",
+          createdAt: "2026-08-01T10:00:00.000Z",
+          updatedAt: "2026-08-01T10:00:00.000Z",
+        },
+      ],
+      "2026-08-19T08:00:00.000Z",
+    );
+    expect(md).toContain("## \\# injected");
+  });
+
   it("picks the matching content type", () => {
     const json = renderNotesExport(notes, "json", "2026-08-19T08:00:00.000Z");
     expect(json.contentType).toMatch(/application\/json/);

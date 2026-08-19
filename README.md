@@ -67,7 +67,8 @@ UTC ISO-8601 so mixed formats still sort and show “edited” correctly. Invali
 fields, bad dates, or duplicate ids) are skipped: health reports `degraded`,
 valid notes can still be listed, and writes return `503` until the file is repaired.
 The UI follows the browser language (including Arabic/RTL), supports search
-(including Arabic alef/tashkeel variants, hamza on waw/yeh, and extra spaces),
+(including Arabic alef/tashkeel variants, hamza on waw/yeh, Persian yeh/kaf,
+Eastern Arabic digits, Latin accents, and extra spaces),
 asks before deleting, and can export the visible notes as JSON or Markdown.
 
 ## Project layout
