@@ -108,6 +108,7 @@ export function App() {
       setError(t.titleRequired);
       return;
     }
+    setError(null);
     setSaving(true);
     try {
       if (editingId) {
@@ -136,6 +137,7 @@ export function App() {
     if (!window.confirm(t.confirmDelete(note.title))) {
       return;
     }
+    setError(null);
     setDeletingId(note.id);
     try {
       await deleteNote(note.id);
@@ -171,6 +173,7 @@ export function App() {
           className="note-form__input"
           placeholder={t.titlePlaceholder}
           aria-label={t.titleLabel}
+          aria-invalid={!title.trim() && error === t.titleRequired}
           dir="auto"
           value={title}
           maxLength={TITLE_MAX_LENGTH}

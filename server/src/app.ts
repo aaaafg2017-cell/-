@@ -1,8 +1,16 @@
+import { resolve } from "node:path";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import { NotesStore, PersistError, ValidationError } from "./notesStore.js";
 
-export function createApp(store: NotesStore = new NotesStore()): Express {
+export interface AppOptions {
+  staticDir?: string;
+}
+
+export function createApp(
+  store: NotesStore = new NotesStore(),
+  options: AppOptions = {},
+): Express {
   const app = express();
   app.use(cors());
   app.use(express.json({ limit: "32kb" }));
@@ -64,6 +72,20 @@ export function createApp(store: NotesStore = new NotesStore()): Express {
   app.use("/api", (_req: Request, res: Response) => {
     res.status(404).json({ error: "not found" });
   });
+
+  if (options.staticDir) {
+    const staticDir = resolve(options.staticDir);
+    app.use(express.static(staticDir));
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        next();
+        return;
+      }
+      res.sendFile(resolve(staticDir, "index.html"), (err) => {
+        if (err) next(err);
+      });
+    });
+  }
 
   app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
     if (res.headersSent) {

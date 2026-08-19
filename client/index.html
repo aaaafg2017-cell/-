@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Notes</title>
+    <script>
+      (function () {
+        var language = String(navigator.language || "").toLowerCase();
+        var ar = language === "ar" || language.indexOf("ar-") === 0;
+        document.documentElement.lang = ar ? "ar" : "en";
+        document.documentElement.dir = ar ? "rtl" : "ltr";
+        document.title = ar ? "الملاحظات" : "Notes";
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

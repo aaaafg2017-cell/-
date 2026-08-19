@@ -224,4 +224,34 @@ describe("Notes API", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("serves the built client when staticDir is set", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "notes-static-"));
+    try {
+      writeFileSync(
+        join(dir, "index.html"),
+        "<!doctype html><title>Notes UI</title>",
+        "utf8",
+      );
+      const ui = createApp(new NotesStore(), { staticDir: dir });
+
+      const home = await request(ui).get("/");
+      expect(home.status).toBe(200);
+      expect(home.text).toContain("Notes UI");
+
+      const spa = await request(ui).get("/does-not-exist");
+      expect(spa.status).toBe(200);
+      expect(spa.text).toContain("Notes UI");
+
+      const health = await request(ui).get("/api/health");
+      expect(health.status).toBe(200);
+      expect(health.body.status).toBe("ok");
+
+      const missingApi = await request(ui).get("/api/does-not-exist");
+      expect(missingApi.status).toBe(404);
+      expect(missingApi.body.error).toBe("not found");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

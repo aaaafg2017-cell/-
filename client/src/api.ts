@@ -44,7 +44,7 @@ export async function updateNote(
   input: { title: string; body: string },
 ): Promise<Note> {
   return handle<Note>(
-    await fetch(`${BASE}/notes/${id}`, {
+    await fetch(`${BASE}/notes/${encodeURIComponent(id)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
@@ -54,6 +54,6 @@ export async function updateNote(
 
 export async function deleteNote(id: string): Promise<void> {
   await handle<void>(
-    await fetch(`${BASE}/notes/${id}`, { method: "DELETE" }),
+    await fetch(`${BASE}/notes/${encodeURIComponent(id)}`, { method: "DELETE" }),
   );
 }
