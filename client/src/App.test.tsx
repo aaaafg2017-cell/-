@@ -360,6 +360,28 @@ describe("App", () => {
     expect(screen.getByLabelText(/note title/i)).toHaveValue("");
   });
 
+  it("cancels edit when Escape is pressed from the search field", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "Draft",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    render(<App />);
+    expect(await screen.findByText("Draft")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /edit/i }));
+    expect(screen.getByRole("button", { name: /save note/i })).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText(/search notes/i));
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: /add note/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/note title/i)).toHaveValue("");
+  });
+
   it("retries when the API is unreachable on first load", async () => {
     let attempts = 0;
     vi.stubGlobal(
