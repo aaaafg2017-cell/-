@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { extname, resolve } from "node:path";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import { NotesStore, PersistError, ValidationError } from "./notesStore.js";
@@ -79,6 +79,11 @@ export function createApp(
     app.use((req: Request, res: Response, next: NextFunction) => {
       if (req.method !== "GET" && req.method !== "HEAD") {
         next();
+        return;
+      }
+      // Missing hashed assets / favicons must 404, not fall back to index.html.
+      if (extname(req.path)) {
+        res.status(404).end();
         return;
       }
       res.sendFile(resolve(staticDir, "index.html"), (err) => {
