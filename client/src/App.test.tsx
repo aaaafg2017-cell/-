@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App } from "./App.tsx";
 import type { Note } from "./api.ts";
+import * as exportNotesModule from "./exportNotes.ts";
 
 const notes: Note[] = [];
 
@@ -225,6 +226,52 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: /delete keep me/i }));
     expect(screen.getByText("Keep me")).toBeInTheDocument();
     expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("exports all notes as JSON", async () => {
+    const user = userEvent.setup();
+    const now = new Date().toISOString();
+    notes.push(
+      { id: "1", title: "Buy milk", body: "2 liters", createdAt: now, updatedAt: now },
+      { id: "2", title: "Walk dog", body: "evening", createdAt: now, updatedAt: now },
+    );
+    const exportSpy = vi.spyOn(exportNotesModule, "exportNotes").mockImplementation(() => {});
+
+    render(<App />);
+    expect(await screen.findByText("Buy milk")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /export notes/i }));
+    expect(exportSpy).toHaveBeenCalledWith({ notes: expect.arrayContaining([
+      expect.objectContaining({ title: "Buy milk" }),
+      expect.objectContaining({ title: "Walk dog" }),
+    ]) });
+    expect(await screen.findByRole("status")).toHaveTextContent(/exported 2 notes/i);
+    exportSpy.mockRestore();
+  });
+
+  it("shows Arabic export copy when the browser language is Arabic", async () => {
+    Object.defineProperty(navigator, "language", {
+      configurable: true,
+      value: "ar-SA",
+    });
+    Object.defineProperty(navigator, "languages", {
+      configurable: true,
+      value: ["ar-SA"],
+    });
+    const now = new Date().toISOString();
+    notes.push({
+      id: "1",
+      title: "ملاحظة",
+      body: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+    const exportSpy = vi.spyOn(exportNotesModule, "exportNotes").mockImplementation(() => {});
+
+    render(<App />);
+    expect(await screen.findByText("ملاحظة")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "إخراج الملاحظات" })).toBeInTheDocument();
+    exportSpy.mockRestore();
   });
 
   it("filters notes by search query", async () => {

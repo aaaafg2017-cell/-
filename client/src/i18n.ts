@@ -74,6 +74,9 @@ export const copy = {
     bodyTooLong: "Note bodies can be at most 8,000 characters.",
     invalidRequest: "That note could not be saved.",
     discardChanges: "You have unsaved changes. Discard them?",
+    export: "Export notes",
+    exportSuccess: (count: number) =>
+      `Exported ${count} note${count === 1 ? "" : "s"} as JSON.`,
   },
   ar: {
     title: "الملاحظات",
@@ -108,5 +111,12 @@ export const copy = {
     bodyTooLong: "يجب ألا يتجاوز نص الملاحظة 8000 حرف.",
     invalidRequest: "تعذر حفظ هذه الملاحظة.",
     discardChanges: "لديك تغييرات غير محفوظة. هل تريد تجاهلها؟",
+    export: "إخراج الملاحظات",
+    exportSuccess: (count: number) =>
+      count === 1
+        ? "تم إخراج ملاحظة واحدة بصيغة JSON."
+        : count === 2
+          ? "تم إخراج ملاحظتين بصيغة JSON."
+          : `تم إخراج ${count} ملاحظات بصيغة JSON.`,
   },
 } as const;

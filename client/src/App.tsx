@@ -8,6 +8,7 @@ import {
   type Note,
 } from "./api.ts";
 import { copy, detectLocale, normalizeForSearch, type Locale } from "./i18n.ts";
+import { exportNotes } from "./exportNotes.ts";
 
 export const TITLE_MAX_LENGTH = 200;
 export const BODY_MAX_LENGTH = 8000;
@@ -79,6 +80,7 @@ export function App() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
   const refreshId = useRef(0);
   const editingIdRef = useRef<string | null>(null);
   const isDirtyRef = useRef(false);
@@ -301,6 +303,15 @@ export function App() {
     }
   }
 
+  function handleExport() {
+    if (loading || notes.length === 0 || formLocked) {
+      return;
+    }
+    exportNotes({ notes });
+    setExportMessage(t.exportSuccess(notes.length));
+    setError(null);
+  }
+
   async function handleDelete(note: Note) {
     if (inFlightRef.current || deletingId || saving) {
       return;
@@ -430,18 +441,38 @@ export function App() {
         <p className="app__empty">{t.empty}</p>
       ) : showList ? (
         <>
-          <label className="app__search">
-            <span className="visually-hidden">{t.searchLabel}</span>
-            <input
-              className="note-form__input"
-              type="search"
-              placeholder={t.searchPlaceholder}
-              aria-label={t.searchLabel}
-              dir="auto"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </label>
+          <div className="app__toolbar">
+            <label className="app__search">
+              <span className="visually-hidden">{t.searchLabel}</span>
+              <input
+                className="note-form__input"
+                type="search"
+                placeholder={t.searchPlaceholder}
+                aria-label={t.searchLabel}
+                dir="auto"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  if (exportMessage) {
+                    setExportMessage(null);
+                  }
+                }}
+              />
+            </label>
+            <button
+              className="app__export"
+              type="button"
+              onClick={handleExport}
+              disabled={formLocked}
+            >
+              {t.export}
+            </button>
+          </div>
+          {exportMessage && (
+            <p className="app__status" role="status">
+              {exportMessage}
+            </p>
+          )}
           {visibleNotes.length === 0 ? (
             <p className="app__empty">{t.noResults}</p>
           ) : (
