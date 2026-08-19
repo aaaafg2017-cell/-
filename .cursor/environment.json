@@ -1,6 +1,6 @@
 {
   "name": "Notes App",
-  "install": "if [ -f package-lock.json ]; then npm ci\nelif [ -f package.json ]; then npm install\nelse echo \"No Node.js project on this revision; skipping npm install\"\nfi",
+  "install": "bash .cursor/install.sh",
   "terminals": [
     {
       "name": "server",
