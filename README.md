@@ -1,5 +1,7 @@
 # Notes App
 
+[English](README.md) | [العربية](README.ar.md)
+
 A small full-stack starter used to bootstrap this repository's development
 experience. It has two workspaces:
 
@@ -8,6 +10,8 @@ experience. It has two workspaces:
 
 The client proxies `/api/*` requests to the server during development, so you
 run both together and interact with a single URL.
+
+More detail: [docs](docs/README.md) · [API](docs/api.md) · [architecture](docs/architecture.md)
 
 ## Prerequisites
 
@@ -29,6 +33,15 @@ For a production build, the API also serves the compiled client:
 npm run build
 npm start          # http://localhost:3001 (API + UI)
 ```
+
+Copy [`.env.example`](.env.example) to `.env` if you need to change ports or the data file path. Environment variables:
+
+| Variable | Default | Used by |
+| --- | --- | --- |
+| `PORT` | `3001` | Express listen port |
+| `HOST` | `0.0.0.0` | Express bind address |
+| `NOTES_DATA_FILE` | `server/data/notes.json` | JSON persistence path |
+| `VITE_API_TARGET` | `http://127.0.0.1:3001` | Vite `/api` proxy target |
 
 ## Common commands
 
@@ -71,12 +84,18 @@ The UI follows the browser language (including Arabic/RTL), supports search
 Eastern Arabic digits, Latin accents, and extra spaces),
 asks before deleting, and can export the visible notes as JSON or Markdown.
 
+Request/response examples and error codes: [API reference](docs/api.md).
+
 ## Project layout
 
 ```
 .
-├── client/          # React + Vite frontend
-├── server/          # Express + TypeScript API
-├── eslint.config.js # Shared ESLint flat config
-└── package.json     # npm workspaces + top-level scripts
+├── client/                 # React + Vite frontend
+│   └── src/                # UI, i18n, client export, API client
+├── server/                 # Express + TypeScript API
+│   └── src/                # routes, NotesStore, server export
+├── docs/                   # API and architecture documentation
+├── .env.example            # Optional environment overrides
+├── eslint.config.js        # Shared ESLint flat config
+└── package.json            # npm workspaces + top-level scripts
 ```
