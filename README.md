@@ -77,6 +77,14 @@ asks before deleting, and can export the visible notes as JSON or Markdown.
 .
 ├── client/          # React + Vite frontend
 ├── server/          # Express + TypeScript API
+├── docs/            # Architecture notes
 ├── eslint.config.js # Shared ESLint flat config
 └── package.json     # npm workspaces + top-level scripts
 ```
+
+## More documentation
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — module responsibilities,
+  request/data flow, persistence and error-handling conventions.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — dev workflow, required checks, and
+  code style expectations for contributors.
