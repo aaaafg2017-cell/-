@@ -1,7 +1,9 @@
 # Notes App
 
-A small full-stack starter used to bootstrap this repository's development
-experience. It has two workspaces:
+[العربية](README.ar.md)
+
+A small full-stack notes app: create, edit, search, and export notes that survive
+a restart. It has two workspaces:
 
 - **`client/`** — React + Vite + TypeScript single-page app.
 - **`server/`** — Express + TypeScript REST API with file-backed notes.
@@ -43,6 +45,16 @@ npm start          # http://localhost:3001 (API + UI)
 | `npm run build` | Build the server and the client for production |
 | `npm start` | Serve the production API and built UI on port `3001` |
 
+## Documentation
+
+| Page | What it covers |
+| --- | --- |
+| [Architecture](docs/architecture.md) | How the client, API, and data file fit together |
+| [API reference](docs/api.md) | Every endpoint, payload, status code, and header |
+| [Persistence](docs/persistence.md) | The `notes.json` format, atomic writes, and degraded modes |
+| [Frontend guide](docs/frontend.md) | UI state, localization, search normalization, export |
+| [Development](docs/development.md) | Scripts, configuration, testing, CI, troubleshooting |
+
 ## API
 
 | Method | Path | Description |
@@ -56,20 +68,22 @@ npm start          # http://localhost:3001 (API + UI)
 | `DELETE` | `/api/notes/:id` | Delete a note |
 
 Titles are limited to 200 characters and bodies to 8,000. Invalid JSON and
-missing titles return `400`. `PUT` is a partial update: omitted fields keep
-their current values. Unknown `/api` routes return JSON `404`. Notes are
-saved to `server/data/notes.json` (override with `NOTES_DATA_FILE`) so they survive
-API restarts. Writes are atomic (`tmp` + rename). Disk write failures return
-`503` and roll back in-memory state. The API file watcher ignores
-`server/data` so saving a note does not restart the server. A corrupt or unreadable file is never overwritten, and listing notes then
-returns `503` instead of an empty list. Loaded timestamps are normalized to
-UTC ISO-8601 so mixed formats still sort and show “edited” correctly. Invalid records (empty titles, over-length
-fields, bad dates, or duplicate ids) are skipped: health reports `degraded`,
-valid notes can still be listed, and writes return `503` until the file is repaired.
-The UI follows the browser language (including Arabic/RTL), supports search
-(including Arabic alef/tashkeel variants, hamza on waw/yeh, Persian yeh/kaf,
-Eastern Arabic digits, Latin accents, and extra spaces),
-asks before deleting, and can export the visible notes as JSON or Markdown.
+missing titles return `400`, unknown `/api` routes return JSON `404`, and `PUT`
+is a partial update — omitted fields keep their current values. The full rules,
+including error messages and export formats, are in the
+[API reference](docs/api.md).
+
+Notes are saved to `server/data/notes.json` (override with `NOTES_DATA_FILE`)
+using atomic writes, so they survive API restarts. A corrupt or partially
+invalid file is never overwritten: the API reports `degraded` or `unavailable`
+health and returns `503` for the affected operations until the file is repaired.
+See [persistence](docs/persistence.md).
+
+The UI follows the browser language (including Arabic/RTL), supports search that
+tolerates Arabic alef/tashkeel variants, hamza on waw/yeh, Persian yeh/kaf,
+Eastern Arabic digits, Latin accents, and extra spaces, asks before deleting or
+discarding unsaved edits, and can export the visible notes as JSON or Markdown.
+See the [frontend guide](docs/frontend.md).
 
 ## Project layout
 
@@ -77,6 +91,7 @@ asks before deleting, and can export the visible notes as JSON or Markdown.
 .
 ├── client/          # React + Vite frontend
 ├── server/          # Express + TypeScript API
+├── docs/            # Architecture, API, persistence, frontend, development docs
 ├── eslint.config.js # Shared ESLint flat config
 └── package.json     # npm workspaces + top-level scripts
 ```
