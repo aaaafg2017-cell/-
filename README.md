@@ -9,6 +9,8 @@ experience. It has two workspaces:
 The client proxies `/api/*` requests to the server during development, so you
 run both together and interact with a single URL.
 
+**Languages:** [English](README.md) · [العربية](README.ar.md)
+
 ## Prerequisites
 
 - Node.js `>= 20` (developed against Node 22)
@@ -43,6 +45,17 @@ npm start          # http://localhost:3001 (API + UI)
 | `npm run build` | Build the server and the client for production |
 | `npm start` | Serve the production API and built UI on port `3001` |
 
+## Features
+
+- Create, edit, and delete notes (delete asks for confirmation)
+- Atomic disk persistence in `server/data/notes.json`
+- Client-side search with Arabic-aware normalization (alef/tashkeel/hamza,
+  Persian yeh/kaf, Eastern digits, Latin accents, extra spaces)
+- UI follows the browser language (Arabic/RTL or English/LTR)
+- Export the visible (search-filtered) notes as JSON or Markdown
+- Unsaved-change guards (`Escape`, `beforeunload`)
+- Health endpoint reports persist status: `ok`, `degraded`, or `unavailable`
+
 ## API
 
 | Method | Path | Description |
@@ -66,10 +79,17 @@ returns `503` instead of an empty list. Loaded timestamps are normalized to
 UTC ISO-8601 so mixed formats still sort and show “edited” correctly. Invalid records (empty titles, over-length
 fields, bad dates, or duplicate ids) are skipped: health reports `degraded`,
 valid notes can still be listed, and writes return `503` until the file is repaired.
-The UI follows the browser language (including Arabic/RTL), supports search
-(including Arabic alef/tashkeel variants, hamza on waw/yeh, Persian yeh/kaf,
-Eastern Arabic digits, Latin accents, and extra spaces),
-asks before deleting, and can export the visible notes as JSON or Markdown.
+
+Full contracts: [`docs/API.md`](docs/API.md).
+
+## Environment variables
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `PORT` | `3001` | API listen port |
+| `HOST` | `0.0.0.0` | API bind address |
+| `NOTES_DATA_FILE` | `server/data/notes.json` | Notes JSON persistence path |
+| `VITE_API_TARGET` | `http://127.0.0.1:3001` | Vite `/api` proxy target in development |
 
 ## Project layout
 
@@ -77,6 +97,35 @@ asks before deleting, and can export the visible notes as JSON or Markdown.
 .
 ├── client/          # React + Vite frontend
 ├── server/          # Express + TypeScript API
+├── docs/            # Architecture and API documentation
+├── .cursor/         # Cloud Agent install + environment
 ├── eslint.config.js # Shared ESLint flat config
+├── README.md        # English (this file)
+├── README.ar.md     # Arabic documentation
 └── package.json     # npm workspaces + top-level scripts
+```
+
+## Documentation
+
+| Doc | Contents |
+| --- | --- |
+| [README.ar.md](README.ar.md) | Arabic project guide |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [AR](docs/ARCHITECTURE.ar.md) | Layers, persistence, i18n, export |
+| [docs/API.md](docs/API.md) · [AR](docs/API.ar.md) | Request/response contracts and errors |
+
+## Cursor Cloud
+
+- Install: `bash .cursor/install.sh` (uses `npm ci` when `package-lock.json` exists)
+- Terminals start `npm run dev:server` and `npm run dev:client`
+- Ports: client `5173`, server `3001`
+
+## Testing and CI
+
+GitHub Actions runs on Node 20 and 22: install, typecheck, lint, test, build.
+
+```bash
+npm test
+npm run typecheck
+npm run lint
+npm run build
 ```
