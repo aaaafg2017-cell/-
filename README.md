@@ -3,6 +3,8 @@
 A small full-stack starter used to bootstrap this repository's development
 experience. It has two workspaces:
 
+> **Documentation:** [Arabic (العربية)](docs/README.ar.md) · [AGENTS.md](AGENTS.md) (Cloud Agent / contributor guide)
+
 - **`client/`** — React + Vite + TypeScript single-page app.
 - **`server/`** — Express + TypeScript REST API with file-backed notes.
 
@@ -71,12 +73,38 @@ The UI follows the browser language (including Arabic/RTL), supports search
 Eastern Arabic digits, Latin accents, and extra spaces),
 asks before deleting, and can export the visible notes as JSON or Markdown.
 
+## Architecture
+
+```
+Browser (:5173 dev / :3001 prod)
+    │
+    ├─ GET /          → Vite (dev) or Express static (prod)
+    └─ /api/*         → Express API
+                            │
+                            └─ NotesStore → server/data/notes.json
+```
+
+During development, Vite proxies `/api` to the Express server (`VITE_API_TARGET`,
+default `http://127.0.0.1:3001`). After `npm run build`, the server serves the
+compiled client from `client/dist` when `index.html` is present.
+
+## Environment variables
+
+| Variable | Default | Used by | Description |
+| --- | --- | --- | --- |
+| `PORT` | `3001` | server | HTTP listen port |
+| `HOST` | `0.0.0.0` | server | HTTP listen host |
+| `NOTES_DATA_FILE` | `server/data/notes.json` | server | Path to persisted notes JSON |
+| `VITE_API_TARGET` | `http://127.0.0.1:3001` | client (dev) | Upstream for Vite `/api` proxy |
+
 ## Project layout
 
 ```
 .
 ├── client/          # React + Vite frontend
 ├── server/          # Express + TypeScript API
+├── docs/            # Additional documentation (e.g. Arabic README)
+├── AGENTS.md        # Cloud Agent and contributor guidance
 ├── eslint.config.js # Shared ESLint flat config
 └── package.json     # npm workspaces + top-level scripts
 ```
