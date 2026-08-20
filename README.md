@@ -1,5 +1,7 @@
 # Notes App
 
+**English** | [العربية](README.ar.md)
+
 A small full-stack starter used to bootstrap this repository's development
 experience. It has two workspaces:
 
@@ -8,6 +10,11 @@ experience. It has two workspaces:
 
 The client proxies `/api/*` requests to the server during development, so you
 run both together and interact with a single URL.
+
+Detailed documentation (in Arabic) lives in `docs/`:
+
+- [API reference — مرجع واجهة برمجة التطبيقات](docs/api.ar.md)
+- [Architecture & development guide — البنية المعمارية ودليل التطوير](docs/architecture.ar.md)
 
 ## Prerequisites
 
@@ -77,6 +84,7 @@ asks before deleting, and can export the visible notes as JSON or Markdown.
 .
 ├── client/          # React + Vite frontend
 ├── server/          # Express + TypeScript API
+├── docs/            # Detailed documentation (Arabic)
 ├── eslint.config.js # Shared ESLint flat config
 └── package.json     # npm workspaces + top-level scripts
 ```
