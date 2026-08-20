@@ -1,5 +1,7 @@
 # Notes App
 
+*[العربية](README.ar.md)*
+
 A small full-stack starter used to bootstrap this repository's development
 experience. It has two workspaces:
 
@@ -70,6 +72,15 @@ The UI follows the browser language (including Arabic/RTL), supports search
 (including Arabic alef/tashkeel variants, hamza on waw/yeh, Persian yeh/kaf,
 Eastern Arabic digits, Latin accents, and extra spaces),
 asks before deleting, and can export the visible notes as JSON or Markdown.
+
+## Environment variables
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `PORT` | `3001` | Port the Express API (and, in production, the built UI) listens on. |
+| `HOST` | `0.0.0.0` | Host/interface the API binds to. |
+| `NOTES_DATA_FILE` | `server/data/notes.json` | Path to the JSON file notes are persisted to. |
+| `VITE_API_TARGET` | `http://127.0.0.1:3001` | API origin the Vite dev/preview server proxies `/api/*` to. |
 
 ## Project layout
 
