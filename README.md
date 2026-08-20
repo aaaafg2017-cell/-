@@ -1,5 +1,7 @@
 # Notes App
 
+[العربية](README.ar.md) · [التوثيق](docs/README.md)
+
 A small full-stack starter used to bootstrap this repository's development
 experience. It has two workspaces:
 
@@ -70,6 +72,19 @@ The UI follows the browser language (including Arabic/RTL), supports search
 (including Arabic alef/tashkeel variants, hamza on waw/yeh, Persian yeh/kaf,
 Eastern Arabic digits, Latin accents, and extra spaces),
 asks before deleting, and can export the visible notes as JSON or Markdown.
+The UI export downloads the **currently filtered** list; `GET /api/notes/export`
+downloads every stored note.
+
+Full request and error details: [docs/api.md](docs/api.md).
+
+## Environment variables
+
+| Variable | Where | Default | Purpose |
+| --- | --- | --- | --- |
+| `PORT` | server | `3001` | Listen port (1–65535) |
+| `HOST` | server | `0.0.0.0` | Bind address |
+| `NOTES_DATA_FILE` | server | `server/data/notes.json` | Notes JSON path |
+| `VITE_API_TARGET` | Vite | `http://127.0.0.1:3001` | Dev/preview proxy target for `/api` |
 
 ## Project layout
 
@@ -77,6 +92,10 @@ asks before deleting, and can export the visible notes as JSON or Markdown.
 .
 ├── client/          # React + Vite frontend
 ├── server/          # Express + TypeScript API
+├── docs/            # Architecture, REST API, and development guides
 ├── eslint.config.js # Shared ESLint flat config
-└── package.json     # npm workspaces + top-level scripts
+├── package.json     # npm workspaces + top-level scripts
+└── README.ar.md     # Arabic getting-started guide
 ```
+
+See also [architecture](docs/architecture.md) and [development](docs/development.md).
